@@ -72,10 +72,15 @@ class WhatsAppClient:
         )
         return _message_id(data)
 
-    async def mark_read(self, message_id: str) -> None:
-        await self._post(
-            {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}
-        )
+    async def mark_read(self, message_id: str, *, typing: bool = False) -> None:
+        payload: dict[str, Any] = {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+        }
+        if typing:
+            payload["typing_indicator"] = {"type": "text"}
+        await self._post(payload)
 
     async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:

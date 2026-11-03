@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -125,3 +126,33 @@ async def test_history_expires_and_starts_with_user(sessionmaker: Maker) -> None
         now = datetime.now(UTC)
         assert [m.role for m in await load_history(session, user, now)] == ["user", "assistant"]
         assert await load_history(session, user, now + timedelta(hours=7)) == []
+
+
+async def test_burst_of_messages_gets_a_single_reply(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Respondendo às duas."), LLMResponse("Ajuda?"))
+    first, second, command = inbound("oi"), inbound("tudo bem?"), inbound("/ajuda")
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker, whatsapp, Orchestrator(llm, ToolRegistry()), make_settings()
+            )
+            ids = [await service.register_inbound(m) for m in (first, second, command)]
+            for user_id, message in zip(ids, (first, second, command), strict=True):
+                assert user_id is not None
+                await service.process(user_id, message)
+
+    assert sent_texts(route) == ["Respondendo às duas.", HELP_TEXT]
+    assert [m.content for m in llm.calls[0][1]] == ["oi", "tudo bem?"]
+    reads = [json.loads(c.request.content) for c in route.calls]
+    assert all(r["typing_indicator"] == {"type": "text"} for r in reads if "status" in r)
+
+
+async def test_commands_do_not_enter_llm_history(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Oi!"))
+    await converse(sessionmaker, llm, inbound("/ajuda"), inbound("oi"))
+
+    assert [m.content for m in llm.calls[0][1]] == ["oi"]

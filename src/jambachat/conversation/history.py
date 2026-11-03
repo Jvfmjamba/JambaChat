@@ -15,6 +15,10 @@ HISTORY_LIMIT = 20
 HISTORY_TTL = timedelta(hours=6)
 
 
+def is_command(text: str) -> bool:
+    return text.lstrip().startswith("/")
+
+
 def to_content(message: ChatMessage) -> dict[str, Any]:
     content: dict[str, Any] = {"text": message.content}
     if message.tool_calls:
@@ -30,7 +34,7 @@ def from_row(row: Message) -> ChatMessage | None:
     content = row.content
     if row.role == Role.USER:
         text = content.get("text")
-        return ChatMessage("user", text) if text else None
+        return ChatMessage("user", text) if text and not is_command(text) else None
     if row.role == Role.TOOL:
         return ChatMessage(
             "tool", content.get("text", ""), tool_call_id=content.get("tool_call_id")

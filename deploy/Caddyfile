@@ -1,7 +1,6 @@
 {$DOMAIN} {
 	encode gzip
 
-	# A Meta manda webhooks bem menores que isso; o app também limita.
 	request_body {
 		max_size 1MB
 	}
@@ -12,9 +11,7 @@
 		X-Content-Type-Options nosniff
 	}
 
-	# Só o webhook e o health simples ficam públicos. /health/ready consulta o banco
-	# e é usado apenas pelo healthcheck interno do Docker.
-	@public path /webhook /health
+	@public path /webhook /health /integrations/wallet
 	handle @public {
 		reverse_proxy app:8000
 	}

@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     stt_api_key: SecretStr = SecretStr("")
     stt_model: str = "whisper-large-v3-turbo"
 
+    public_base_url: str = ""
+
     max_audio_mb: int = 16
     max_image_mb: int = 5
 

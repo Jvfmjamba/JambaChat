@@ -10,6 +10,7 @@ from jambachat.tools.registry import Attachment
 from jambachat.users.export import export_user_data
 from jambachat.users.models import User
 from jambachat.users.repository import delete_user_data
+from jambachat.wallet.service import issue_token, revoke_token
 
 HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 
@@ -26,6 +27,7 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 /ajuda — esta mensagem
 /limpar — esqueço o assunto atual
 /exportar-meus-dados — mando um arquivo com tudo que tenho sobre você
+/atalho — registro sozinho as compras feitas com o iPhone
 /apagar-meus-dados — apago tudo que tenho sobre você"""
 
 CLEARED_TEXT = "Pronto, esqueci o assunto. Pode começar do zero."
@@ -36,6 +38,28 @@ DELETE_CONFIRM_TEXT = (
 DELETED_TEXT = "Seus dados foram apagados. Se mandar outra mensagem, começo do zero."
 EXPORTED_TEXT = "Aqui está tudo que eu guardo sobre você."
 UNKNOWN_TEXT = "Não conheço esse comando. Mande /ajuda pra ver o que eu faço."
+WALLET_OFF_TEXT = "Pronto, o atalho da Carteira foi desligado. O código antigo não funciona mais."
+
+
+def wallet_text(token: str, base_url: str) -> str:
+    url = f"{(base_url or 'https://SEU-DOMINIO').rstrip('/')}/integrations/wallet"
+    return "\n".join(
+        [
+            "*Atalho da Carteira*",
+            "Seu código pessoal (não compartilhe, ele só aparece agora):",
+            token,
+            "",
+            "No iPhone: Atalhos → Automação → Nova → Transação → escolha os cartões →",
+            "ação *Obter Conteúdo de URL*:",
+            f"• URL: {url}",
+            "• Método: POST",
+            "• Cabeçalho Authorization: Bearer + espaço + o código",
+            "• Corpo JSON: amount = Valor, merchant = Comerciante, card = Cartão",
+            "",
+            "Mandar /atalho de novo gera outro código e invalida este.",
+            "Para desligar: /atalho desligar",
+        ]
+    )
 
 
 async def status_text(session: AsyncSession, settings: Settings, tools: int) -> str:
@@ -89,6 +113,11 @@ async def handle_command(
             content = await export_user_data(session, user)
             attachments.append(Attachment("jambachat-meus-dados.json", "application/json", content))
             return EXPORTED_TEXT
+        case "/atalho":
+            if argument.strip() == "desligar":
+                revoke_token(user)
+                return WALLET_OFF_TEXT
+            return wallet_text(issue_token(user), settings.public_base_url if settings else "")
         case "/apagar-meus-dados":
             if argument.strip() != "confirmar":
                 return DELETE_CONFIRM_TEXT

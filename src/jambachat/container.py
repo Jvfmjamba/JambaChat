@@ -16,6 +16,7 @@ from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
 from jambachat.security.crypto import get_cipher
 from jambachat.security.ratelimit import RateLimiter
 from jambachat.tools.catalog import build_registry
+from jambachat.wallet.service import WalletService
 from jambachat.whatsapp.client import WhatsAppClient
 
 
@@ -25,6 +26,7 @@ class Container:
     sessionmaker: async_sessionmaker[AsyncSession]
     conversation: ConversationService
     scheduler: ReminderScheduler | None = None
+    wallet: WalletService | None = None
     closers: list[Callable[[], Awaitable[None]]] = field(default_factory=list)
 
     def start(self) -> None:
@@ -79,6 +81,9 @@ def build_container(settings: Settings) -> Container:
             limiter=RateLimiter.from_settings(settings),
         ),
         scheduler=scheduler,
+        wallet=WalletService(
+            sessionmaker, whatsapp, settings, RateLimiter([(10, 60), (200, 86_400)])
+        ),
         closers=[http.aclose, get_engine().dispose],
     )
 

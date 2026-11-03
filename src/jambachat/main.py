@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from jambachat import __version__
-from jambachat.api import health, webhook
+from jambachat.api import health, wallet, webhook
 from jambachat.config import get_settings
 from jambachat.container import Container, build_container
 from jambachat.logging import configure_logging
@@ -38,6 +38,7 @@ def create_app(container: Container | None = None) -> FastAPI:
         app.state.container = container
     app.include_router(health.router)
     app.include_router(webhook.router)
+    app.include_router(wallet.router)
     return app
 
 

@@ -18,4 +18,5 @@ class User(UUIDPrimaryKey, CreatedAt, Base):
     is_admin: Mapped[bool] = mapped_column(default=False)
     last_inbound_at: Mapped[datetime | None]
     context_cleared_at: Mapped[datetime | None]
+    wallet_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
     last_summary_month: Mapped[str | None] = mapped_column(String(7))

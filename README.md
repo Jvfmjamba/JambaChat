@@ -18,7 +18,7 @@ Em desenvolvimento. Marco atual: M1 — Conversa.
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
 | Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
 
-Comandos: `/ajuda`, `/limpar` e `/apagar-meus-dados`.
+Comandos: `/ajuda`, `/limpar` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
 
 ## Requisitos
 
@@ -64,7 +64,7 @@ A transcrição usa qualquer API compatível com `/audio/transcriptions` da Open
 |---|---|---|---|
 | Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3-turbo` | Plano gratuito |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini-transcribe` | Pago |
-| Speaches (na sua máquina) | `http://localhost:8000/v1` | `Systran/faster-whisper-small` | Gratuito |
+| Speaches (na sua máquina, na porta 8001) | `http://localhost:8001/v1` | `Systran/faster-whisper-small` | Gratuito |
 
 ### Pesquisa e utilitários
 
@@ -80,16 +80,16 @@ uv run uvicorn jambachat.main:app --reload
 
 Rode um único processo do servidor (o padrão do uvicorn e da imagem Docker): a fila que responde as mensagens de cada pessoa em ordem fica em memória. Em produção use Postgres; o SQLite serve para desenvolvimento e para o modo terminal.
 
-Para conversar pelo terminal, sem WhatsApp (bom para testar o provedor de IA antes de configurar a Meta):
-
-```bash
-uv run python -m jambachat.cli "Seu nome"
-```
-
 Ou com Docker:
 
 ```bash
 docker compose up --build
+```
+
+Para conversar pelo terminal, sem WhatsApp (bom para testar o provedor de IA antes de configurar a Meta):
+
+```bash
+uv run python -m jambachat.cli "Seu nome"
 ```
 
 ## Produção

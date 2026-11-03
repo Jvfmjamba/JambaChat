@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BeforeValidator, Field
 
 from jambachat.expenses.budgets import budget_alerts
-from jambachat.expenses.models import Category, EntryKind, Expense
+from jambachat.expenses.models import Category, EntryKind, EntrySource, Expense
 from jambachat.expenses.service import (
     EntryFilter,
     EntryNotFoundError,
@@ -272,7 +272,7 @@ MAX_EXPORT_ROWS = 5000
 def to_csv(entries: list[Expense], tz: ZoneInfo) -> bytes:
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
-    writer.writerow(["Data", "Tipo", "Categoria", "Descrição", "Valor"])
+    writer.writerow(["Data", "Tipo", "Categoria", "Descrição", "Valor", "Origem"])
     for entry in sorted(entries, key=lambda e: e.occurred_at):
         sign = -1 if entry.kind == EntryKind.EXPENSE else 1
         cents = sign * entry.amount_cents
@@ -283,6 +283,7 @@ def to_csv(entries: list[Expense], tz: ZoneInfo) -> bytes:
                 entry.category,
                 _safe_cell(entry.description),
                 f"{cents / 100:.2f}".replace(".", ","),
+                EntrySource(entry.source).value,
             ]
         )
     return ("\ufeff" + buffer.getvalue()).encode("utf-8")

@@ -1,6 +1,8 @@
 import asyncio
+import contextlib
 import uuid
-from collections import defaultdict
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -38,6 +40,12 @@ INTERNAL_ERROR_TEXT = "Opa, algo deu errado do meu lado. Tenta de novo daqui a p
 MB = 1024 * 1024
 
 
+@dataclass
+class _UserLock:
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    users: int = 0
+
+
 class _EarlyReplyError(Exception):
     def __init__(self, text: str) -> None:
         super().__init__(text)
@@ -58,7 +66,7 @@ class ConversationService:
         self._whatsapp = whatsapp
         self._orchestrator = orchestrator
         self._settings = settings
-        self._locks: defaultdict[uuid.UUID, asyncio.Lock] = defaultdict(asyncio.Lock)
+        self._locks: dict[uuid.UUID, _UserLock] = {}
         self._answered_until: dict[uuid.UUID, datetime] = {}
 
     async def register_inbound(self, message: InboundMessage) -> uuid.UUID | None:
@@ -98,7 +106,7 @@ class ConversationService:
             log.warning("mark_read_failed", error=str(exc))
 
         # mensagens do mesmo usuário são respondidas em ordem, uma por vez
-        async with self._locks[user_id]:
+        async with self._user_lock(user_id):
             try:
                 reply_to = await self._prepare_reply(user_id, message, log)
             except Exception:
@@ -122,6 +130,18 @@ class ConversationService:
                 log.error("send_failed", error=str(exc))
                 return
         log.info("message_answered")
+
+    @contextlib.asynccontextmanager
+    async def _user_lock(self, user_id: uuid.UUID) -> AsyncIterator[None]:
+        entry = self._locks.setdefault(user_id, _UserLock())
+        entry.users += 1
+        try:
+            async with entry.lock:
+                yield
+        finally:
+            entry.users -= 1
+            if entry.users == 0:
+                self._locks.pop(user_id, None)
 
     async def _send_failure_notice(self, phone: str, log: structlog.stdlib.BoundLogger) -> None:
         try:

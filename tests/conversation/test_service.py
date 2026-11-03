@@ -1,4 +1,5 @@
 import json
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -375,3 +376,15 @@ async def test_llm_failure_drops_attachments(sessionmaker: Maker) -> None:
     bodies = [json.loads(c.request.content) for c in route.calls]
     assert [b["type"] for b in bodies if "type" in b] == ["text"]
     assert sent_texts(route) == [LLM_DOWN_TEXT]
+
+
+async def test_user_locks_are_released(sessionmaker: Maker) -> None:
+    async with httpx.AsyncClient() as http:
+        whatsapp = WhatsAppClient(http, access_token="t", phone_number_id="1", api_version="v1")
+        service = ConversationService(
+            sessionmaker, whatsapp, Orchestrator(ScriptedLLM(), ToolRegistry()), make_settings()
+        )
+        user_id = uuid.uuid4()
+        async with service._user_lock(user_id):
+            assert user_id in service._locks
+        assert service._locks == {}

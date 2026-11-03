@@ -10,7 +10,8 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 • *Lembretes:* "me lembra de pagar a luz dia 10 às 9h"
 • *Gastos:* "gastei 42 no ifood", "quanto gastei esse mês?"
 • *Pesquisa:* "quem ganhou o jogo ontem?"
-• *Utilitários:* câmbio, clima, CEP e contas
+• *Utilitários:* câmbio, clima, CEP, contas e datas
+• *Áudio e foto:* mande um áudio ou a foto de uma nota fiscal
 
 *Comandos*
 /ajuda — esta mensagem

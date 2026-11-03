@@ -6,6 +6,19 @@ Assistente pessoal no WhatsApp para lembretes, controle de gastos, pesquisas rá
 
 Em desenvolvimento. Marco atual: M1 — Conversa.
 
+## O que ele faz
+
+| Área | Exemplos |
+|---|---|
+| Lembretes | "me lembra de pagar a luz dia 10 às 9h", "todo dia às 8h tomar remédio", "adia 10 min" |
+| Gastos | "gastei 42 no ifood", "recebi 3000 de salário", "quanto gastei esse mês?", "apaga o último" |
+| Pesquisa | "quem ganhou o jogo ontem?", "que horas abre o Detran?" |
+| Utilitários | câmbio ("100 dólares em reais"), clima, CEP, calculadora, contas com datas |
+| Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
+| Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
+
+Comandos: `/ajuda`, `/limpar` e `/apagar-meus-dados`.
+
 ## Requisitos
 
 - Python 3.12+ e [uv](https://docs.astral.sh/uv/), ou Docker
@@ -35,6 +48,22 @@ Qualquer serviço com API compatível com OpenAI funciona, além da Anthropic. O
 | Anthropic | `anthropic` | vazio | `claude-haiku-5-5` | Pago |
 
 `LLM_API_KEY` fica vazia para provedores locais.
+
+Com um modelo que enxerga imagens (ex.: `gemini-2.5-flash`, `claude-haiku-5-5`, `qwen2.5vl` no Ollama), defina `LLM_VISION=true` para o assistente ler fotos.
+
+### Áudio
+
+A transcrição usa qualquer API compatível com `/audio/transcriptions` da OpenAI. Sem `STT_BASE_URL`, áudios recebem uma resposta pedindo texto.
+
+| Provedor | `STT_BASE_URL` | `STT_MODEL` | Custo |
+|---|---|---|---|
+| Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3-turbo` | Plano gratuito |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini-transcribe` | Pago |
+| Speaches (na sua máquina) | `http://localhost:8000/v1` | `Systran/faster-whisper-small` | Gratuito |
+
+### Pesquisa e utilitários
+
+A pesquisa na web usa a [Tavily](https://tavily.com) (plano gratuito) e só fica disponível com `TAVILY_API_KEY`. Câmbio ([AwesomeAPI](https://docs.awesomeapi.com.br)), clima ([Open-Meteo](https://open-meteo.com)) e CEP ([ViaCEP](https://viacep.com.br)) são gratuitos e não precisam de chave.
 
 ## Executando
 

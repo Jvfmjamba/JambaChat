@@ -24,7 +24,7 @@ Se o repositório for privado, copie esses três arquivos com `scp`. A imagem `g
 Edite o `.env`:
 
 - Gere as chaves de criptografia em qualquer máquina com o projeto (`uv run python -m jambachat.security.keygen`) e cole `ENCRYPTION_KEYS` e `INDEX_KEY`. Guarde uma cópia: sem elas, os dados salvos não podem ser lidos.
-- Acrescente `DOMAIN=jamba.seudominio.com` e `POSTGRES_PASSWORD=` com uma senha forte.
+- Acrescente `DOMAIN=jamba.seudominio.com` e `POSTGRES_PASSWORD=` com uma senha forte só de letras e números, que vai dentro de uma URL. Por exemplo, a saída de `openssl rand -hex 24`.
 - Preencha WhatsApp, provedor de IA e o resto como em [whatsapp.md](whatsapp.md) e no README.
 
 `DATABASE_URL` não precisa ser preenchida: o compose monta o endereço do Postgres.

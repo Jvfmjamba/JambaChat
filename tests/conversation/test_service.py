@@ -411,3 +411,30 @@ async def test_welcome_on_first_contact_only(sessionmaker: Maker) -> None:
                 await service.process(user_id, message)
 
     assert sent_texts(route) == [WELCOME_TEXT, "Oi!", "De novo."]
+
+
+async def test_welcome_survives_bursts_and_skips_failures(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMError("fora"), LLMResponse("Agora sim."))
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker,
+                whatsapp,
+                Orchestrator(llm, ToolRegistry()),
+                make_settings(send_welcome=True),
+            )
+            first = inbound("oi")
+            user_id = await service.register_inbound(first)
+            assert user_id is not None
+            await service.process(user_id, first)
+            retry, burst = inbound("oi de novo"), inbound("tá aí?")
+            await service.register_inbound(retry)
+            await service.register_inbound(burst)
+            await service.process(user_id, retry)
+            await service.process(user_id, burst)
+
+    assert sent_texts(route) == [LLM_DOWN_TEXT, WELCOME_TEXT, "Agora sim."]

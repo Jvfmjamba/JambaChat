@@ -170,7 +170,8 @@ class ConversationService:
                 session, user, message
             )
             reply = await self._reply(session, user, message, log, attachments)
-            texts = [WELCOME_TEXT, reply] if welcome else [reply]
+            failed = reply in {LLM_DOWN_TEXT, INTERNAL_ERROR_TEXT}
+            texts = [WELCOME_TEXT, reply] if welcome and not failed else [reply]
             await session.commit()
         return phone, texts, attachments
 
@@ -286,12 +287,13 @@ class ConversationService:
     ) -> bool:
         if message.text and is_command(message.text):
             return False
-        count = await session.scalar(
-            select(func.count())
-            .select_from(Message)
-            .where(Message.user_id == user.id, Message.direction == Direction.INBOUND)
+        # primeiro contato = ainda não respondemos nada; vale também para rajadas
+        answered = await session.scalar(
+            select(Message.id)
+            .where(Message.user_id == user.id, Message.direction == Direction.OUTBOUND)
+            .limit(1)
         )
-        return count == 1
+        return answered is None
 
     async def _latest_inbound_at(
         self, session: AsyncSession, user_id: uuid.UUID

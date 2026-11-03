@@ -131,3 +131,24 @@ async def test_add_recurring_rejects_bad_amount(sessionmaker: Maker, amount: str
             ctx, "add_recurring_entry", amount=amount, description="x", day_of_month=1
         )
     assert "error" in result
+
+
+async def test_bad_rule_does_not_block_others(sessionmaker: Maker) -> None:
+    async with sessionmaker() as session:
+        broken = User(phone="1", phone_hash="1", timezone="Fuso/Inexistente")
+        fine = User(phone="2", phone_hash="2", timezone="America/Sao_Paulo")
+        session.add_all([broken, fine])
+        await session.flush()
+        for user, day in ((broken, date(2026, 1, 1)), (fine, date(2026, 1, 2))):
+            session.add(
+                RecurringEntry(
+                    user_id=user.id,
+                    amount_cents=100,
+                    description="x",
+                    day_of_month=day.day,
+                    next_run_on=day,
+                )
+            )
+        await session.commit()
+
+    assert await RecurringEntryJob(sessionmaker).run_once(datetime(2026, 1, 3, tzinfo=UTC)) == 1

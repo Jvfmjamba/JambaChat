@@ -16,7 +16,7 @@ from jambachat.users.models import User
 logger = structlog.get_logger(__name__)
 
 MAX_RULES = 50
-MAX_CATCH_UP = 12
+MAX_PER_TICK = 12  # lançamentos atrasados entram aos poucos, no máximo 12 por ciclo
 KIND_MAP = {"gasto": EntryKind.EXPENSE, "receita": EntryKind.INCOME}
 KIND_LABEL = {EntryKind.EXPENSE: "gasto", EntryKind.INCOME: "receita"}
 NOT_FOUND = "recorrência não encontrada; liste as recorrências para obter o id correto"
@@ -170,7 +170,12 @@ class RecurringEntryJob:
                 )
             )
             for rule in rules:
-                created += await self._apply(session, rule, now)
+                try:
+                    # savepoint por regra: um problema numa regra não trava as dos outros
+                    async with session.begin_nested():
+                        created += await self._apply(session, rule, now)
+                except Exception:
+                    logger.exception("recurring_entry_failed", rule_id=str(rule.id))
             await session.commit()
         return created
 
@@ -182,7 +187,7 @@ class RecurringEntryJob:
         tz = ZoneInfo(user.timezone)
         today = now.astimezone(tz).date()
         created = 0
-        while rule.next_run_on <= today and created < MAX_CATCH_UP:
+        while rule.next_run_on <= today and created < MAX_PER_TICK:
             session.add(
                 Expense(
                     user_id=rule.user_id,

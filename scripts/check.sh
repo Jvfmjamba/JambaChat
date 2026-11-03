@@ -2,6 +2,7 @@
 set -u
 cd "$(dirname "$0")/.."
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
+[[ "$PWD" == *OneDrive* ]] && export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.venvs/jambachat}"
 
 if command -v uv >/dev/null 2>&1; then UV=(uv); else UV=(python -m uv); fi
 [[ "${1:-}" == "--fix" ]] && "${UV[@]}" run ruff format -q . && "${UV[@]}" run ruff check -q --fix .

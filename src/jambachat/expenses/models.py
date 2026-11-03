@@ -31,6 +31,10 @@ class Category(StrEnum):
     ASSINATURAS = "Assinaturas"
     COMPRAS = "Compras"
     CONTAS = "Contas"
+    PETS = "Pets"
+    VIAGEM = "Viagem"
+    SALARIO = "Salário"
+    INVESTIMENTOS = "Investimentos"
     OUTROS = "Outros"
 
 

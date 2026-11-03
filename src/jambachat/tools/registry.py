@@ -38,9 +38,7 @@ class Tool:
     handler: Handler
 
     def spec(self) -> ToolSpec:
-        schema = self.args_model.model_json_schema()
-        schema.pop("title", None)
-        return ToolSpec(self.name, self.description, schema)
+        return ToolSpec(self.name, self.description, simplify_schema(self.args_model))
 
 
 class ToolRegistry:
@@ -74,6 +72,41 @@ class ToolRegistry:
             logger.exception("tool_failed", tool=call.name)
             return _dump({"error": "falha interna ao executar a ferramenta"})
         return _dump(result)
+
+
+def simplify_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """Gera um JSON Schema sem $ref, títulos ou anyOf com null.
+
+    Vários provedores compatíveis com OpenAI (Gemini, Ollama, Groq) rejeitam ou
+    entendem mal esses recursos, então o schema é achatado antes de ser enviado.
+    """
+    schema = model.model_json_schema()
+    defs = schema.pop("$defs", {})
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        if "$ref" in node:
+            target = defs[node["$ref"].rsplit("/", 1)[-1]]
+            extra = {k: v for k, v in node.items() if k != "$ref"}
+            return walk({**target, **extra})
+        options = node.get("anyOf")
+        if isinstance(options, list):
+            concrete = [o for o in options if o != {"type": "null"}]
+            rest = {k: v for k, v in node.items() if k != "anyOf"}
+            if len(concrete) == 1:
+                return walk({**concrete[0], **rest})
+            node = {**rest, "anyOf": concrete}
+        return {
+            k: walk(v)
+            for k, v in node.items()
+            if k != "title" and not (k == "default" and v is None)
+        }
+
+    result: dict[str, Any] = walk(schema)
+    return result
 
 
 def _dump(value: dict[str, Any]) -> str:

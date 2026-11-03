@@ -92,6 +92,10 @@ Ou com Docker:
 docker compose up --build
 ```
 
+## Produção
+
+Para colocar num servidor com HTTPS, Postgres e atualização pela imagem publicada, siga [docs/deploy.md](docs/deploy.md).
+
 ## Desenvolvimento
 
 ```bash

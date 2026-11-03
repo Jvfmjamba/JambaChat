@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "variaveis de ambiente sem valor em arquivos de exemplo"
+regexTarget = "line"
+regexes = ['''^[A-Z0-9_]+=\s*$''']

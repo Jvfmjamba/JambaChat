@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jambachat.config import Settings
 from jambachat.conversation.models import Message
 from jambachat.expenses.models import Budget, Expense
+from jambachat.lists.models import ListItem
 from jambachat.reminders.models import Reminder
 from jambachat.security.crypto import get_cipher
 from jambachat.users.models import User
@@ -35,6 +36,6 @@ async def get_or_create_user(
 
 
 async def delete_user_data(session: AsyncSession, user: User) -> None:
-    for model in (Message, Reminder, Expense, Budget):
+    for model in (Message, Reminder, Expense, Budget, ListItem):
         await session.execute(delete(model).where(model.user_id == user.id))
     await session.delete(user)

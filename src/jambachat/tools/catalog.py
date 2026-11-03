@@ -3,6 +3,7 @@ import httpx
 from jambachat.config import Settings
 from jambachat.expenses.budgets import BUDGET_TOOLS
 from jambachat.expenses.tools import EXPENSE_TOOLS
+from jambachat.lists.tools import LIST_TOOLS
 from jambachat.reminders.tools import REMINDER_TOOLS
 from jambachat.search.tavily import TavilyClient
 from jambachat.search.tools import build_search_tools
@@ -18,6 +19,7 @@ def build_registry(
         *REMINDER_TOOLS,
         *EXPENSE_TOOLS,
         *BUDGET_TOOLS,
+        *LIST_TOOLS,
         *OFFLINE_TOOLS,
         *PROFILE_TOOLS,
     ]

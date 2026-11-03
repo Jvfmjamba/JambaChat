@@ -12,6 +12,7 @@ Em desenvolvimento. Marco atual: M1 — Conversa.
 |---|---|
 | Lembretes | "me lembra de pagar a luz dia 10 às 9h", "todo dia às 8h tomar remédio", "adia 10 min" |
 | Gastos | "gastei 42 no ifood", "recebi 3000 de salário", "quanto gastei esse mês?", "limite de 800 pra mercado" |
+| Listas | "põe leite e pão na lista de compras", "marca o pão", "o que falta comprar?" |
 | Pesquisa | "quem ganhou o jogo ontem?", "que horas abre o Detran?" |
 | Utilitários | câmbio ("100 dólares em reais"), clima, CEP, calculadora, contas com datas |
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |

@@ -1,4 +1,3 @@
-import unicodedata
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -8,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.expenses.models import EntryKind, Expense
+from jambachat.text import fold
 from jambachat.users.models import User
 
 
@@ -71,8 +71,8 @@ async def find_entries(session: AsyncSession, user: User, flt: EntryFilter) -> l
         query = query.where(Expense.category == flt.category)
     rows = list(await session.scalars(query.order_by(Expense.occurred_at.desc())))
     if flt.query:
-        needle = _fold(flt.query)
-        rows = [r for r in rows if needle in _fold(r.description)]
+        needle = fold(flt.query)
+        rows = [r for r in rows if needle in fold(r.description)]
     return rows
 
 
@@ -104,8 +104,3 @@ async def delete_entry(session: AsyncSession, user: User, entry_id: str) -> Expe
     await session.delete(entry)
     await session.flush()
     return entry
-
-
-def _fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text.casefold())
-    return "".join(c for c in decomposed if not unicodedata.combining(c))

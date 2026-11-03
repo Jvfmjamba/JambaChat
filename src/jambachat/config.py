@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "sqlite+aiosqlite:///./jambachat.db"
 
+    encryption_keys: SecretStr = SecretStr("")
+    index_key: SecretStr = SecretStr("")
+
     whatsapp_verify_token: SecretStr = SecretStr("")
     whatsapp_app_secret: SecretStr = SecretStr("")
     whatsapp_access_token: SecretStr = SecretStr("")
@@ -23,9 +26,12 @@ class Settings(BaseSettings):
     admin_phones: Annotated[frozenset[str], NoDecode] = Field(default_factory=frozenset)
     default_timezone: str = "America/Sao_Paulo"
 
-    anthropic_api_key: SecretStr = SecretStr("")
-    llm_model: str = "claude-haiku-5-5"
+    llm_provider: Literal["openai_compatible", "anthropic"] = "openai_compatible"
+    llm_base_url: str = ""
+    llm_api_key: SecretStr = SecretStr("")
+    llm_model: str = "qwen3:8b"
     llm_max_tokens: int = 1024
+    llm_timeout_seconds: float = 60.0
 
     tavily_api_key: SecretStr = SecretStr("")
 

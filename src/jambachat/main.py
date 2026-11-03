@@ -18,6 +18,8 @@ def create_app(container: Container | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         owned = container is None
         app.state.container = container or build_container(settings)
+        if owned:
+            app.state.container.start()
         try:
             yield
         finally:

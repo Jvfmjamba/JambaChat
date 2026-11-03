@@ -27,3 +27,4 @@ class Reminder(UUIDPrimaryKey, CreatedAt, Base):
     status: Mapped[ReminderStatus] = mapped_column(String(16), default=ReminderStatus.PENDING)
     attempts: Mapped[int] = mapped_column(default=0)
     sent_at: Mapped[datetime | None]
+    next_attempt_at: Mapped[datetime | None]

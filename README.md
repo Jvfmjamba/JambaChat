@@ -18,7 +18,7 @@ Em desenvolvimento. Marco atual: M1 — Conversa.
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
 | Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
 
-Comandos: `/ajuda`, `/limpar` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
+Comandos: `/ajuda`, `/limpar`, `/exportar-meus-dados` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
 
 ## Requisitos
 

@@ -13,6 +13,7 @@ from jambachat.users.models import User
 
 HISTORY_LIMIT = 20
 HISTORY_TTL = timedelta(hours=6)
+MAX_OLD_TOOL_RESULT = 1500
 
 
 def is_command(text: str) -> bool:
@@ -36,9 +37,11 @@ def from_row(row: Message) -> ChatMessage | None:
         text = content.get("text")
         return ChatMessage("user", text) if text and not is_command(text) else None
     if row.role == Role.TOOL:
-        return ChatMessage(
-            "tool", content.get("text", ""), tool_call_id=content.get("tool_call_id")
-        )
+        # resultados de turnos anteriores só servem de contexto; corta para poupar tokens
+        text = str(content.get("text", ""))
+        if len(text) > MAX_OLD_TOOL_RESULT:
+            text = text[:MAX_OLD_TOOL_RESULT] + "… [resultado truncado]"
+        return ChatMessage("tool", text, tool_call_id=content.get("tool_call_id"))
     calls = tuple(
         ToolCall(c["id"], c["name"], c.get("arguments") or {})
         for c in content.get("tool_calls") or []

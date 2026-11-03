@@ -13,7 +13,7 @@ from jambachat.conversation.commands import (
     DELETED_TEXT,
     HELP_TEXT,
 )
-from jambachat.conversation.history import load_history
+from jambachat.conversation.history import MAX_OLD_TOOL_RESULT, load_history, save_turn
 from jambachat.conversation.models import Message, Role
 from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import (
@@ -22,7 +22,7 @@ from jambachat.conversation.service import (
     UNSUPPORTED_TEXT,
     ConversationService,
 )
-from jambachat.llm.types import LLMError, LLMResponse, ToolCall
+from jambachat.llm.types import ChatMessage, LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolRegistry
 from jambachat.users.models import User
@@ -268,3 +268,24 @@ async def test_reminder_buttons_skip_the_model(sessionmaker: Maker) -> None:
             )
         )
     assert pending == ["beber água"]
+
+
+async def test_old_tool_results_are_truncated_in_history(sessionmaker: Maker) -> None:
+    await converse(sessionmaker, ScriptedLLM(LLMResponse("Oi!")), inbound("oi"))
+    async with sessionmaker() as session:
+        user = (await session.scalars(select(User))).one()
+        await save_turn(
+            session,
+            user.id,
+            [
+                ChatMessage("assistant", "", (ToolCall("c1", "x", {}),)),
+                ChatMessage("tool", "a" * 5000, tool_call_id="c1"),
+                ChatMessage("assistant", "pronto"),
+            ],
+        )
+        await session.commit()
+        history = await load_history(session, user, datetime.now(UTC))
+
+    tool = next(m for m in history if m.role == "tool")
+    assert len(tool.content) < MAX_OLD_TOOL_RESULT + 30
+    assert tool.content.endswith("[resultado truncado]")

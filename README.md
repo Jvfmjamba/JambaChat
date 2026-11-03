@@ -52,6 +52,8 @@ Qualquer serviço com API compatível com OpenAI funciona, além da Anthropic. O
 
 `LLM_API_KEY` fica vazia para provedores locais.
 
+No Ollama, aumente a janela de contexto: o padrão é pequeno demais para o prompt com todas as ferramentas e o modelo passa a ignorar instruções. Inicie o servidor com `OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (ou ajuste "Context length" nas configurações do app).
+
 Com um modelo que enxerga imagens (ex.: `gemini-2.5-flash`, `claude-haiku-5-5`, `qwen2.5vl` no Ollama), defina `LLM_VISION=true` para o assistente ler fotos.
 
 ### Áudio

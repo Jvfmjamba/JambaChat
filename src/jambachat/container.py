@@ -44,7 +44,7 @@ def build_container(settings: Settings) -> Container:
         phone_number_id=settings.whatsapp_phone_number_id,
         api_version=settings.whatsapp_api_version,
     )
-    orchestrator = Orchestrator(create_llm_client(settings, http), build_registry())
+    orchestrator = Orchestrator(create_llm_client(settings, http), build_registry(settings, http))
     scheduler = (
         ReminderScheduler(
             ReminderDispatcher(sessionmaker, whatsapp, settings),

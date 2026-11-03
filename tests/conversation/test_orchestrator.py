@@ -1,9 +1,11 @@
+import contextlib
 import json
 from datetime import UTC, datetime
 from typing import Any, cast
 
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from jambachat.conversation.orchestrator import LIMIT_REPLY, Orchestrator
 from jambachat.llm.types import ChatMessage, LLMResponse, ToolCall
@@ -26,10 +28,15 @@ async def boom(ctx: ToolContext, args: EchoArgs) -> dict[str, Any]:
     raise RuntimeError("bug")
 
 
+class FakeSession:
+    def begin_nested(self) -> contextlib.nullcontext[None]:
+        return contextlib.nullcontext()
+
+
 def context() -> ToolContext:
     user = User(phone="1", phone_hash="h", name="João", timezone="America/Sao_Paulo")
     return ToolContext(
-        session=cast(AsyncSession, None),
+        session=cast(AsyncSession, FakeSession()),
         user=user,
         settings=make_settings(),
         now=datetime(2026, 11, 3, 12, 0, tzinfo=UTC),
@@ -91,3 +98,37 @@ async def test_stops_after_max_iterations() -> None:
 
     assert result.reply == LIMIT_REPLY
     assert result.messages[-1] == ChatMessage("assistant", LIMIT_REPLY)
+
+
+async def test_failing_tool_rolls_back_only_its_own_changes(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    class NoArgs(BaseModel):
+        pass
+
+    async def renames_then_fails(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
+        ctx.user.name = "corrompido"
+        await ctx.session.flush()
+        raise ToolError("falhou")
+
+    async def crashes(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
+        ctx.session.add(User(phone="x", phone_hash="dup"))
+        await ctx.session.flush()
+        raise RuntimeError("bug")
+
+    registry = ToolRegistry(
+        [Tool("a", "a", NoArgs, renames_then_fails), Tool("b", "b", NoArgs, crashes)]
+    )
+    async with sessionmaker() as session:
+        user = User(phone="1", phone_hash="1", name="original")
+        session.add(user)
+        await session.commit()
+        ctx = ToolContext(session, user, make_settings(), datetime.now(UTC))
+
+        assert "falhou" in await registry.execute(ToolCall("1", "a", {}), ctx)
+        assert "falha interna" in await registry.execute(ToolCall("2", "b", {}), ctx)
+        await session.commit()
+
+    async with sessionmaker() as session:
+        names = list(await session.scalars(select(User.name)))
+    assert names == ["original"]

@@ -65,7 +65,9 @@ class ToolRegistry:
             details = exc.errors(include_url=False, include_input=False, include_context=False)
             return _dump({"error": "argumentos inválidos", "details": details})
         try:
-            result = await tool.handler(ctx, args)
+            # savepoint: se a ferramenta falhar, só as mudanças dela são desfeitas
+            async with ctx.session.begin_nested():
+                result = await tool.handler(ctx, args)
         except ToolError as exc:
             return _dump({"error": str(exc)})
         except Exception:

@@ -34,6 +34,7 @@ IMAGE_FAILED_TEXT = "Não consegui abrir a imagem. Tenta mandar de novo?"
 MEDIA_TOO_LARGE_TEXT = "Esse arquivo é grande demais pra mim. Consegue mandar um menor?"
 IMAGE_PLACEHOLDER = "(imagem enviada)"
 LLM_DOWN_TEXT = "Tive um problema pra pensar agora. Tenta de novo daqui a pouco?"
+INTERNAL_ERROR_TEXT = "Opa, algo deu errado do meu lado. Tenta de novo daqui a pouco?"
 MB = 1024 * 1024
 
 
@@ -98,7 +99,12 @@ class ConversationService:
 
         # mensagens do mesmo usuário são respondidas em ordem, uma por vez
         async with self._locks[user_id]:
-            reply_to = await self._prepare_reply(user_id, message, log)
+            try:
+                reply_to = await self._prepare_reply(user_id, message, log)
+            except Exception:
+                log.exception("reply_failed")
+                await self._send_failure_notice(message.phone, log)
+                return
             if reply_to is None:
                 return
             phone, reply = reply_to
@@ -108,6 +114,12 @@ class ConversationService:
                 log.error("send_failed", error=str(exc))
                 return
         log.info("message_answered")
+
+    async def _send_failure_notice(self, phone: str, log: structlog.stdlib.BoundLogger) -> None:
+        try:
+            await self._whatsapp.send_text(phone, INTERNAL_ERROR_TEXT)
+        except WhatsAppError as exc:
+            log.error("send_failed", error=str(exc))
 
     async def _prepare_reply(
         self, user_id: uuid.UUID, message: InboundMessage, log: structlog.stdlib.BoundLogger

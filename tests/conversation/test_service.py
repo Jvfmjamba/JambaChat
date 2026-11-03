@@ -15,7 +15,12 @@ from jambachat.conversation.commands import (
 from jambachat.conversation.history import load_history
 from jambachat.conversation.models import Message, Role
 from jambachat.conversation.orchestrator import Orchestrator
-from jambachat.conversation.service import LLM_DOWN_TEXT, UNSUPPORTED_TEXT, ConversationService
+from jambachat.conversation.service import (
+    INTERNAL_ERROR_TEXT,
+    LLM_DOWN_TEXT,
+    UNSUPPORTED_TEXT,
+    ConversationService,
+)
 from jambachat.llm.types import LLMError, LLMResponse
 from jambachat.tools.registry import ToolRegistry
 from jambachat.users.models import User
@@ -172,3 +177,8 @@ async def test_location_goes_to_the_model(sessionmaker: Maker) -> None:
 
     assert replies == ["Tá sol aí!"]
     assert llm.calls[0][1][0].content == text
+
+
+async def test_unexpected_error_still_answers(sessionmaker: Maker) -> None:
+    replies = await converse(sessionmaker, ScriptedLLM(RuntimeError("bug")), inbound("oi"))
+    assert replies == [INTERNAL_ERROR_TEXT]

@@ -9,6 +9,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import ConversationService
 from jambachat.db.session import get_engine, get_sessionmaker
 from jambachat.llm.factory import create_llm_client
+from jambachat.media.transcriber import Transcriber
 from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
 from jambachat.security.crypto import get_cipher
 from jambachat.tools.catalog import build_registry
@@ -56,7 +57,20 @@ def build_container(settings: Settings) -> Container:
     return Container(
         settings=settings,
         sessionmaker=sessionmaker,
-        conversation=ConversationService(sessionmaker, whatsapp, orchestrator, settings),
+        conversation=ConversationService(
+            sessionmaker, whatsapp, orchestrator, settings, _transcriber(settings, http)
+        ),
         scheduler=scheduler,
         closers=[http.aclose, get_engine().dispose],
+    )
+
+
+def _transcriber(settings: Settings, http: httpx.AsyncClient) -> Transcriber | None:
+    if not settings.stt_base_url:
+        return None
+    return Transcriber(
+        http,
+        base_url=settings.stt_base_url,
+        api_key=settings.stt_api_key.get_secret_value(),
+        model=settings.stt_model,
     )

@@ -19,6 +19,17 @@ def strip_reasoning(text: str) -> str:
 def _to_wire(message: ChatMessage) -> dict[str, Any]:
     if message.role == "tool":
         return {"role": "tool", "tool_call_id": message.tool_call_id, "content": message.content}
+    if message.images:
+        parts: list[dict[str, Any]] = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{image.mime_type};base64,{image.base64()}"},
+            }
+            for image in message.images
+        ]
+        if message.content:
+            parts.append({"type": "text", "text": message.content})
+        return {"role": message.role, "content": parts}
     wire: dict[str, Any] = {"role": message.role, "content": message.content or None}
     if message.tool_calls:
         wire["tool_calls"] = [

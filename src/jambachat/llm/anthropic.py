@@ -15,7 +15,13 @@ def _blocks(message: ChatMessage) -> tuple[str, list[dict[str, Any]]]:
         return "user", [
             {"type": "tool_result", "tool_use_id": message.tool_call_id, "content": message.content}
         ]
-    blocks: list[dict[str, Any]] = []
+    blocks: list[dict[str, Any]] = [
+        {
+            "type": "image",
+            "source": {"type": "base64", "media_type": image.mime_type, "data": image.base64()},
+        }
+        for image in message.images
+    ]
     if message.content:
         blocks.append({"type": "text", "text": message.content})
     blocks.extend(

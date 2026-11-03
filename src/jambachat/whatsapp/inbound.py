@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+MEDIA_KINDS = frozenset({"audio", "image"})
+
 
 @dataclass(frozen=True)
 class InboundMessage:
@@ -11,6 +13,12 @@ class InboundMessage:
     kind: str
     text: str | None
     timestamp: datetime
+    media_id: str | None = None
+    media_mime: str | None = None
+
+    @property
+    def has_media(self) -> bool:
+        return self.media_id is not None
 
 
 def _text_of(message: dict[str, Any], kind: str) -> str | None:
@@ -23,7 +31,19 @@ def _text_of(message: dict[str, Any], kind: str) -> str | None:
         reply = interactive.get("button_reply") or interactive.get("list_reply") or {}
         title = reply.get("title")
         return str(title) if title else None
+    if kind in MEDIA_KINDS:
+        caption = (message.get(kind) or {}).get("caption")
+        return str(caption) if caption else None
     return None
+
+
+def _media_of(message: dict[str, Any], kind: str) -> tuple[str | None, str | None]:
+    if kind not in MEDIA_KINDS:
+        return None, None
+    media = message.get(kind) or {}
+    media_id = media.get("id")
+    mime = media.get("mime_type")
+    return (str(media_id) if media_id else None), (str(mime) if mime else None)
 
 
 def parse_webhook(payload: Any) -> list[InboundMessage]:
@@ -42,6 +62,7 @@ def parse_webhook(payload: Any) -> list[InboundMessage]:
                 try:
                     kind = str(raw.get("type", "unknown"))
                     phone = str(raw["from"])
+                    media_id, media_mime = _media_of(raw, kind)
                     messages.append(
                         InboundMessage(
                             wa_message_id=str(raw["id"]),
@@ -50,6 +71,8 @@ def parse_webhook(payload: Any) -> list[InboundMessage]:
                             kind=kind,
                             text=_text_of(raw, kind),
                             timestamp=datetime.fromtimestamp(int(raw["timestamp"]), UTC),
+                            media_id=media_id,
+                            media_mime=media_mime,
                         )
                     )
                 except (KeyError, TypeError, ValueError, AttributeError):

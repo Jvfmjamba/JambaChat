@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 1024
     llm_timeout_seconds: float = 60.0
 
+    llm_vision: bool = False
+
+    stt_base_url: str = ""
+    stt_api_key: SecretStr = SecretStr("")
+    stt_model: str = "whisper-large-v3-turbo"
+
+    max_audio_mb: int = 16
+    max_image_mb: int = 5
+
     tavily_api_key: SecretStr = SecretStr("")
 
     scheduler_enabled: bool = True

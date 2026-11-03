@@ -1,3 +1,4 @@
+from base64 import b64encode
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
@@ -20,11 +21,21 @@ class ToolCall:
 
 
 @dataclass(frozen=True)
+class Image:
+    mime_type: str
+    data: bytes
+
+    def base64(self) -> str:
+        return b64encode(self.data).decode("ascii")
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: Role
     content: str = ""
     tool_calls: tuple[ToolCall, ...] = field(default_factory=tuple)
     tool_call_id: str | None = None
+    images: tuple[Image, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,10 @@ class Orchestrator:
         self._registry = registry
         self._max_iterations = max_iterations
 
+    @property
+    def tool_count(self) -> int:
+        return len(self._registry.specs())
+
     async def run(self, history: Sequence[ChatMessage], ctx: ToolContext) -> TurnResult:
         system = build_system_prompt(ctx.now, ctx.user.timezone, ctx.user.name, ctx.user.home_city)
         specs = self._registry.specs()

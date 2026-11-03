@@ -219,3 +219,16 @@ async def test_attachments_are_sent_after_the_reply(sessionmaker: Maker) -> None
     assert [b["type"] for b in sent] == ["text", "document"]
     assert sent[1]["document"] == {"id": "media-1", "filename": "a.csv", "caption": "planilha"}
     assert b'filename="a.csv"' in upload.calls[0].request.content
+
+
+async def test_status_command_is_admin_only(sessionmaker: Maker) -> None:
+    replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
+    assert "/ajuda" in replies[0]
+
+    async with sessionmaker() as session:
+        user = (await session.scalars(select(User))).one()
+        user.is_admin = True
+        await session.commit()
+    replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
+    assert replies[0].startswith("*JambaChat")
+    assert "Usuários: 1" in replies[0]

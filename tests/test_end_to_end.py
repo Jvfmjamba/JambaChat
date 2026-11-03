@@ -1,5 +1,7 @@
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 import respx
@@ -13,6 +15,8 @@ from jambachat.conversation.service import ConversationService
 from jambachat.expenses.models import Expense
 from jambachat.llm.factory import create_llm_client
 from jambachat.main import create_app
+from jambachat.reminders.models import Reminder, ReminderStatus
+from jambachat.reminders.scheduler import ReminderDispatcher
 from jambachat.tools.catalog import build_registry
 from jambachat.whatsapp.client import WhatsAppClient
 from tests.fakes import (
@@ -25,6 +29,7 @@ from tests.fakes import (
 )
 
 LLM_URL = "http://localhost:11434/v1/chat/completions"
+SP = ZoneInfo("America/Sao_Paulo")
 
 
 def completion(content: str | None = None, calls: list[dict[str, Any]] | None = None) -> Any:
@@ -98,3 +103,78 @@ async def test_expense_flows_from_webhook_to_database(
     async with sessionmaker() as session:
         expense = (await session.scalars(select(Expense))).one()
     assert (expense.amount_cents, expense.description) == (4290, "iFood")
+
+
+async def test_reminder_lifecycle_with_buttons(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = make_settings()
+    with respx.mock:
+        respx.route(host="test").pass_through()
+        respx.post(LLM_URL).mock(
+            side_effect=[
+                completion(
+                    None,
+                    [
+                        {
+                            "name": "create_reminder",
+                            "arguments": {
+                                "text": "tomar remédio",
+                                "due_at": (datetime.now(SP) + timedelta(minutes=1)).strftime(
+                                    "%Y-%m-%dT%H:%M"
+                                ),
+                            },
+                        }
+                    ],
+                ),
+                completion("Combinado, te lembro daqui a pouco."),
+            ]
+        )
+        graph = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            orchestrator = Orchestrator(
+                create_llm_client(settings, http), build_registry(settings, http)
+            )
+            conversation = ConversationService(sessionmaker, whatsapp, orchestrator, settings)
+            app = create_app(Container(settings, sessionmaker, conversation))
+            dispatcher = ReminderDispatcher(sessionmaker, whatsapp, settings)
+
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                await post(c, webhook_payload("me lembra de tomar remédio daqui 1 min"))
+                assert await dispatcher.run_once(datetime.now(UTC) + timedelta(minutes=2)) == 1
+
+                button = webhook_payload(None, message_id="wamid.button", kind="interactive")
+                raw = button["entry"][0]["changes"][0]["value"]["messages"][0]
+                raw["interactive"] = {
+                    "type": "button_reply",
+                    "button_reply": {"id": "b0", "title": "Adiar 10 min"},
+                }
+                await post(c, button)
+
+    bodies = [json.loads(call.request.content) for call in graph.calls]
+    sent = [b for b in bodies if "type" in b]
+    assert sent[0]["text"]["body"] == "Combinado, te lembro daqui a pouco."
+    assert sent[1]["type"] == "interactive"
+    assert sent[1]["interactive"]["body"]["text"] == "*Lembrete:* tomar remédio"
+    assert sent[2]["text"]["body"].startswith("Beleza, te lembro de novo às")
+
+    async with sessionmaker() as session:
+        statuses = sorted((r.status, r.text) for r in await session.scalars(select(Reminder)))
+    assert statuses == [
+        (ReminderStatus.PENDING, "tomar remédio"),
+        (ReminderStatus.SENT, "tomar remédio"),
+    ]
+
+
+async def post(client: AsyncClient, payload: dict[str, Any]) -> None:
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["timestamp"] = str(
+        int(datetime.now(UTC).timestamp())
+    )
+    body = json.dumps(payload).encode()
+    response = await client.post(
+        "/webhook", content=body, headers={"x-hub-signature-256": sign(body)}
+    )
+    assert response.status_code == 200

@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: jambachat
       POSTGRES_PASSWORD: jambachat
@@ -17,6 +18,7 @@ services:
 
   app:
     build: .
+    restart: unless-stopped
     env_file: .env
     environment:
       APP_ENV: development

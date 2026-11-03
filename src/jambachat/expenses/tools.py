@@ -131,8 +131,9 @@ def _occurred_at(value: str | None, ctx: ToolContext) -> datetime:
 def _period(args: PeriodArgs, ctx: ToolContext) -> tuple[date, date]:
     today = ctx.now.date()
     try:
-        start = parse_local_date(args.start_date) if args.start_date else month_start(today)
-        end = parse_local_date(args.end_date) if args.end_date else max(today, start)
+        end = parse_local_date(args.end_date) if args.end_date else None
+        start = parse_local_date(args.start_date) if args.start_date else month_start(end or today)
+        end = end or max(today, start)
     except ValueError as exc:
         raise ToolError("data inválida; use AAAA-MM-DD") from exc
     if end < start:

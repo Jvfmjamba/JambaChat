@@ -239,3 +239,11 @@ async def test_export_entries_as_csv(session: AsyncSession) -> None:
     )
     assert "não há lançamentos" in empty["error"]
     assert empty_ctx.attachments == []
+
+
+async def test_period_defaults(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    only_end = await run(session, user, "list_entries", end_date="2026-10-15")
+    assert only_end["period"] == {"from": "01/10/2026", "to": "15/10/2026"}
+    only_start = await run(session, user, "list_entries", start_date="2026-09-10")
+    assert only_start["period"] == {"from": "10/09/2026", "to": "20/11/2026"}

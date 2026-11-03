@@ -88,6 +88,8 @@ Ou com Docker:
 docker compose up --build
 ```
 
+O compose da raiz é para uso local: banco e app escutam só em `127.0.0.1`.
+
 Para conversar pelo terminal, sem WhatsApp (bom para testar o provedor de IA antes de configurar a Meta):
 
 ```bash
@@ -96,7 +98,7 @@ uv run python -m jambachat.cli "Seu nome"
 
 ## Produção
 
-Para colocar num servidor com HTTPS, Postgres e atualização pela imagem publicada, siga [docs/deploy.md](docs/deploy.md).
+Para colocar num servidor com HTTPS, Postgres e atualização pela imagem publicada, siga [docs/deploy.md](docs/deploy.md), incluindo o checklist de segurança no final.
 
 ## Desenvolvimento
 

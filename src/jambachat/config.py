@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -50,6 +51,10 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 30
 
+    rate_limit_per_minute: int = Field(default=10, ge=1)
+    rate_limit_per_day: int = Field(default=300, ge=1)
+    max_input_chars: int = Field(default=2000, ge=1, le=4096)
+
     @field_validator("allowed_phones", "admin_phones", mode="before")
     @classmethod
     def _split_phones(cls, value: object) -> object:
@@ -60,6 +65,28 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    def production_problems(self) -> list[str]:
+        problems = [
+            f"{name.upper()} não definida"
+            for name, value in (
+                ("whatsapp_app_secret", self.whatsapp_app_secret.get_secret_value()),
+                ("whatsapp_verify_token", self.whatsapp_verify_token.get_secret_value()),
+                ("whatsapp_access_token", self.whatsapp_access_token.get_secret_value()),
+                ("whatsapp_phone_number_id", self.whatsapp_phone_number_id),
+            )
+            if not value
+        ]
+        if len(self.whatsapp_verify_token.get_secret_value()) < 16:
+            problems.append("WHATSAPP_VERIFY_TOKEN precisa ter pelo menos 16 caracteres")
+        if not self.allowed_phones:
+            problems.append("ALLOWED_PHONES vazia: ninguém conseguiria usar o bot")
+        db = urlsplit(self.database_url)
+        if db.scheme.startswith("sqlite"):
+            problems.append("DATABASE_URL usa sqlite; use postgres em produção")
+        elif db.password in {None, "", "jambachat", "postgres", "password", "senha"}:
+            problems.append("DATABASE_URL sem senha ou com senha padrão/fraca")
+        return problems
 
 
 @lru_cache

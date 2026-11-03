@@ -30,7 +30,8 @@ ngrok http 8000
 
 ## 4. Registrar o webhook
 
-1. Invente um texto qualquer para `WHATSAPP_VERIFY_TOKEN` e coloque no `.env`.
+1. Gere um texto aleatório para `WHATSAPP_VERIFY_TOKEN` (em produção o app exige 16+ caracteres) e coloque no `.env`:
+   `python -c "import secrets; print(secrets.token_urlsafe(24))"`
 2. Em **WhatsApp → Configuração**, em **Webhook**, informe:
    - URL de callback: `https://SEU-ENDERECO/webhook`
    - Token de verificação: o mesmo de `WHATSAPP_VERIFY_TOKEN`

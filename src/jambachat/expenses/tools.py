@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BeforeValidator, Field
 
 from jambachat.expenses.budgets import budget_alerts
 from jambachat.expenses.models import Category, EntryKind, Expense
@@ -26,7 +26,7 @@ from jambachat.timeutils import (
     parse_local_date,
     parse_local_datetime,
 )
-from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolError
+from jambachat.tools.registry import Attachment, Tool, ToolArgs, ToolContext, ToolError
 
 NOT_FOUND = "lançamento não encontrado; liste os lançamentos para obter o id correto"
 MAX_PAST = timedelta(days=10 * 366)
@@ -40,7 +40,7 @@ Amount = Annotated[str, BeforeValidator(lambda v: v if isinstance(v, str) else s
 DATE_HELP = "Data em ISO 8601 (AAAA-MM-DD). Sem data, usa hoje."
 
 
-class AddEntryArgs(BaseModel):
+class AddEntryArgs(ToolArgs):
     amount: Amount = Field(description=AMOUNT_HELP)
     description: str = Field(
         min_length=1, max_length=200, description="Onde ou com o quê, ex.: iFood, mercado"
@@ -50,7 +50,7 @@ class AddEntryArgs(BaseModel):
     date: str | None = Field(default=None, description=DATE_HELP)
 
 
-class PeriodArgs(BaseModel):
+class PeriodArgs(ToolArgs):
     start_date: str | None = Field(
         default=None, description="Início do período (AAAA-MM-DD). Padrão: dia 1 do mês atual"
     )
@@ -72,7 +72,7 @@ class SummaryArgs(PeriodArgs):
     pass
 
 
-class UpdateEntryArgs(BaseModel):
+class UpdateEntryArgs(ToolArgs):
     entry_id: str = Field(description="Id do lançamento, obtido em list_entries")
     amount: Amount | None = Field(default=None, description=AMOUNT_HELP)
     description: str | None = Field(default=None, min_length=1, max_length=200)
@@ -85,7 +85,7 @@ class ExportArgs(PeriodArgs):
     pass
 
 
-class DeleteEntryArgs(BaseModel):
+class DeleteEntryArgs(ToolArgs):
     entry_id: str = Field(description="Id do lançamento, obtido em list_entries")
 
 
@@ -340,8 +340,9 @@ EXPENSE_TOOLS = [
         "Corrige valor, descrição, categoria, tipo ou data de um lançamento.",
         UpdateEntryArgs,
         update,
+        destructive=True,
     ),
-    Tool("delete_entry", "Apaga um lançamento.", DeleteEntryArgs, delete),
+    Tool("delete_entry", "Apaga um lançamento.", DeleteEntryArgs, delete, destructive=True),
     Tool(
         "export_entries",
         "Gera uma planilha (CSV) com os lançamentos do período e envia como arquivo no "

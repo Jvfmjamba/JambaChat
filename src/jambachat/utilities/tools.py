@@ -2,10 +2,10 @@ from datetime import date
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from jambachat.money import format_brl
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 from jambachat.utilities.calculator import CalculationError, evaluate
 from jambachat.utilities.cep import CepClient
 from jambachat.utilities.dates import describe_date, describe_gap, shift
@@ -13,7 +13,7 @@ from jambachat.utilities.exchange import ExchangeClient, normalize_currency
 from jambachat.utilities.weather import Place, WeatherClient
 
 
-class CalculateArgs(BaseModel):
+class CalculateArgs(ToolArgs):
     expression: str = Field(
         min_length=1,
         max_length=300,
@@ -21,7 +21,7 @@ class CalculateArgs(BaseModel):
     )
 
 
-class DateCalcArgs(BaseModel):
+class DateCalcArgs(ToolArgs):
     operation: Literal["diferenca", "somar", "dia_da_semana"] = Field(
         description="diferenca entre duas datas; somar um prazo a uma data; "
         "ou dia_da_semana de uma data"
@@ -38,7 +38,7 @@ class DateCalcArgs(BaseModel):
     years: int = Field(default=0, ge=-100, le=100)
 
 
-class ExchangeArgs(BaseModel):
+class ExchangeArgs(ToolArgs):
     from_currency: str = Field(description="Código da moeda de origem, ex.: USD, EUR, BTC")
     to_currency: str = Field(default="BRL", description="Código da moeda de destino")
     amount: float | None = Field(
@@ -46,7 +46,7 @@ class ExchangeArgs(BaseModel):
     )
 
 
-class WeatherArgs(BaseModel):
+class WeatherArgs(ToolArgs):
     city: str | None = Field(
         default=None,
         min_length=2,
@@ -64,7 +64,7 @@ class WeatherArgs(BaseModel):
     longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
-class CepArgs(BaseModel):
+class CepArgs(ToolArgs):
     cep: str = Field(description="CEP com ou sem traço")
 
 

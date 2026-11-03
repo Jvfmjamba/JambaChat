@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,24 +10,24 @@ from jambachat.expenses.models import TOTAL_BUDGET, Budget, Category, EntryKind
 from jambachat.expenses.service import EntryFilter, find_entries, summarize
 from jambachat.money import format_brl, parse_amount
 from jambachat.timeutils import local_range, month_start
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 from jambachat.users.models import User
 
 BudgetCategory = Category | Literal["Total"]
 
 
-class SetBudgetArgs(BaseModel):
+class SetBudgetArgs(ToolArgs):
     category: BudgetCategory = Field(
         description='Categoria do orçamento, ou "Total" para o limite geral do mês'
     )
     amount: str = Field(description='Limite mensal em reais, ex.: "800" ou "1.500,00"')
 
 
-class ListBudgetsArgs(BaseModel):
+class ListBudgetsArgs(ToolArgs):
     pass
 
 
-class DeleteBudgetArgs(BaseModel):
+class DeleteBudgetArgs(ToolArgs):
     category: BudgetCategory = Field(description='Categoria do orçamento, ou "Total"')
 
 
@@ -126,5 +126,11 @@ BUDGET_TOOLS = [
         ListBudgetsArgs,
         list_budgets,
     ),
-    Tool("delete_budget", "Remove o orçamento de uma categoria.", DeleteBudgetArgs, delete_budget),
+    Tool(
+        "delete_budget",
+        "Remove o orçamento de uma categoria.",
+        DeleteBudgetArgs,
+        delete_budget,
+        destructive=True,
+    ),
 ]

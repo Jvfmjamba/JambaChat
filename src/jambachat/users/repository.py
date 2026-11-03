@@ -30,8 +30,10 @@ async def get_or_create_user(
                 session.add(user)
         except IntegrityError:
             user = (await session.scalars(query)).one()
-    elif name and user.name != name:
-        user.name = name
+    else:
+        user.is_admin = phone in settings.admin_phones
+        if name and user.name != name:
+            user.name = name
     return user
 
 

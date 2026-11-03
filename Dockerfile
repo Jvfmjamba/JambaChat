@@ -31,4 +31,4 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER app
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn jambachat.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn jambachat.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --no-server-header"]

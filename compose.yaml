@@ -4,10 +4,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: jambachat
-      POSTGRES_PASSWORD: jambachat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jambachat}
       POSTGRES_DB: jambachat
+    # Só a própria máquina acessa o banco. O Docker ignora o firewall (ufw),
+    # então publicar em 0.0.0.0 deixaria o Postgres aberto para a internet.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,9 +24,18 @@ services:
     env_file: .env
     environment:
       APP_ENV: development
-      DATABASE_URL: postgresql+asyncpg://jambachat:jambachat@db:5432/jambachat
+      DATABASE_URL: postgresql+asyncpg://jambachat:${POSTGRES_PASSWORD:-jambachat}@db:5432/jambachat
+    # Exponha para a internet só através de um proxy reverso com HTTPS (Caddy, Nginx,
+    # Cloudflare Tunnel), nunca a porta do uvicorn direto.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       db:
         condition: service_healthy

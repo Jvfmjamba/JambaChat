@@ -20,6 +20,18 @@ def _container(request: Request) -> Container:
     return container
 
 
+async def _read_limited(request: Request) -> bytes:
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+        raise HTTPException(status_code=413)
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_BODY_BYTES:
+            raise HTTPException(status_code=413)
+    return bytes(body)
+
+
 @router.get("/webhook", response_class=PlainTextResponse)
 async def verify(
     request: Request,
@@ -38,9 +50,7 @@ async def verify(
 async def receive(request: Request, background: BackgroundTasks) -> dict[str, str]:
     container = _container(request)
     settings = container.settings
-    body = await request.body()
-    if len(body) > MAX_BODY_BYTES:
-        raise HTTPException(status_code=413)
+    body = await _read_limited(request)
     signature = request.headers.get("x-hub-signature-256")
     if not is_valid_signature(settings.whatsapp_app_secret.get_secret_value(), body, signature):
         logger.warning("invalid_signature")

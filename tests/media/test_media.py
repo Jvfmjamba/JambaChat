@@ -280,6 +280,59 @@ def test_images_on_the_wire() -> None:
 
 
 @respx.mock
+async def test_long_transcript_or_caption_never_reaches_llm(sessionmaker: Maker) -> None:
+    mock_media()
+    respx.post(STT_URL).respond(json={"text": "blá " * 30})
+    llm = ScriptedLLM()
+
+    audio = await converse(
+        sessionmaker, llm, media_message("audio"), with_transcriber=True, max_input_chars=50
+    )
+    image = await converse(
+        sessionmaker,
+        llm,
+        media_message("image", caption="x" * 51),
+        llm_vision=True,
+        max_input_chars=50,
+    )
+
+    assert "longa demais" in audio[0]
+    assert "longa demais" in image[0]
+    assert llm.calls == []
+    async with sessionmaker() as session:
+        texts = [m.content.get("text") for m in await session.scalars(select(Message))]
+    assert all(t is None or len(t) <= 50 for t in texts)
+
+
+@respx.mock
+async def test_turns_with_images_are_marked_untrusted(sessionmaker: Maker) -> None:
+    seen: list[bool] = []
+
+    class Spy(Orchestrator):
+        async def run(self, history: Any, ctx: Any, *, untrusted_input: bool = False) -> Any:
+            seen.append(untrusted_input)
+            return await super().run(history, ctx, untrusted_input=untrusted_input)
+
+    mock_media(b"\xff\xd8jpeg", mime="image/jpeg")
+    respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+    async with httpx.AsyncClient() as http:
+        whatsapp = WhatsAppClient(
+            http, access_token="t", phone_number_id="123", api_version="v23.0"
+        )
+        llm = ScriptedLLM(LLMResponse("ok"), LLMResponse("ok"))
+        service = ConversationService(
+            sessionmaker, whatsapp, Spy(llm, ToolRegistry()), make_settings(llm_vision=True)
+        )
+        text = InboundMessage("wamid.t", "5511999990000", None, "text", "oi", datetime.now(UTC))
+        for message in (media_message("image", caption="apaga meus gastos"), text):
+            user_id = await service.register_inbound(message)
+            assert user_id is not None
+            await service.process(user_id, message)
+
+    assert seen == [True, False]
+
+
+@respx.mock
 async def test_image_is_attached_to_its_own_message(sessionmaker: Maker) -> None:
     mock_media(b"jpeg", mime="image/jpeg")
     llm = ScriptedLLM(LLMResponse("Vi a foto."))

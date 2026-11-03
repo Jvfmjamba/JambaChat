@@ -3,7 +3,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from dateutil.rrule import rrulestr
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from jambachat.timeutils import as_utc
 
@@ -31,6 +31,8 @@ PLURAL = {"DAILY": "dias", "WEEKLY": "semanas", "MONTHLY": "meses", "YEARLY": "a
 
 
 class Recurrence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     frequency: Frequency = Field(description="Frequência da repetição")
     interval: int = Field(default=1, ge=1, le=366, description="A cada quantas unidades repete")
     weekdays: list[Weekday] = Field(

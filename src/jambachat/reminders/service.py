@@ -1,21 +1,38 @@
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.timeutils import as_utc
 from jambachat.users.models import User
 
+MAX_PENDING_PER_USER = 100
+
 
 class ReminderNotFoundError(Exception):
     pass
 
 
+class ReminderLimitError(Exception):
+    pass
+
+
+async def count_pending(session: AsyncSession, user: User) -> int:
+    total = await session.scalar(
+        select(func.count())
+        .select_from(Reminder)
+        .where(Reminder.user_id == user.id, Reminder.status == ReminderStatus.PENDING)
+    )
+    return int(total or 0)
+
+
 async def create_reminder(
     session: AsyncSession, user: User, text: str, due_at: datetime, recurrence: str | None
 ) -> Reminder:
+    if await count_pending(session, user) >= MAX_PENDING_PER_USER:
+        raise ReminderLimitError
     reminder = Reminder(user_id=user.id, text=text, due_at=due_at, recurrence=recurrence)
     session.add(reminder)
     await session.flush()

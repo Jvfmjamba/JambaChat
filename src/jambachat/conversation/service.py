@@ -19,6 +19,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.llm.types import ChatMessage, Image, LLMError
 from jambachat.media.transcriber import Transcriber, TranscriptionError
 from jambachat.reminders.buttons import handle_reminder_button
+from jambachat.security.ratelimit import Decision, RateLimiter
 from jambachat.timeutils import as_utc
 from jambachat.tools.registry import Attachment, ToolContext
 from jambachat.users.models import User
@@ -36,6 +37,10 @@ IMAGE_FAILED_TEXT = "Não consegui abrir a imagem. Tenta mandar de novo?"
 MEDIA_TOO_LARGE_TEXT = "Esse arquivo é grande demais pra mim. Consegue mandar um menor?"
 IMAGE_PLACEHOLDER = "(imagem enviada)"
 LLM_DOWN_TEXT = "Tive um problema pra pensar agora. Tenta de novo daqui a pouco?"
+TOO_LONG_TEXT = "Essa mensagem ficou longa demais pra mim. Pode resumir em até {limit} caracteres?"
+RATE_LIMITED_TEXT = (
+    "Você mandou muitas mensagens em pouco tempo. Espera um pouquinho e tenta de novo."
+)
 WELCOME_TEXT = (
     "Oi! Eu sou o *JambaChat* 👋 Anoto gastos, crio lembretes e listas, "
     "pesquiso e faço contas. Mande /ajuda pra ver exemplos."
@@ -64,14 +69,19 @@ class ConversationService:
         orchestrator: Orchestrator,
         settings: Settings,
         transcriber: Transcriber | None = None,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self._transcriber = transcriber
         self._sessionmaker = sessionmaker
         self._whatsapp = whatsapp
         self._orchestrator = orchestrator
         self._settings = settings
+        self._limiter = limiter or RateLimiter.from_settings(settings)
         self._locks: dict[uuid.UUID, _UserLock] = {}
         self._answered_until: dict[uuid.UUID, datetime] = {}
+
+    def _too_long(self, message: InboundMessage) -> bool:
+        return message.text is not None and len(message.text) > self._settings.max_input_chars
 
     async def register_inbound(self, message: InboundMessage) -> uuid.UUID | None:
         async with self._sessionmaker() as session:
@@ -88,7 +98,10 @@ class ConversationService:
                     wa_message_id=message.wa_message_id,
                     direction=Direction.INBOUND,
                     role=Role.USER,
-                    content={"text": message.text, "kind": message.kind},
+                    content={
+                        "text": None if self._too_long(message) else message.text,
+                        "kind": message.kind,
+                    },
                     created_at=datetime.now(UTC),
                 )
             )
@@ -103,6 +116,12 @@ class ConversationService:
         log = logger.bind(user_id=str(user_id), wa_message_id=message.wa_message_id)
         if message.kind in IGNORED_KINDS:
             log.info("message_ignored", kind=message.kind)
+            return
+        decision = self._limiter.hit(user_id)
+        if decision is not Decision.ALLOW:
+            log.warning("rate_limited", notified=decision is Decision.BLOCK_AND_NOTIFY)
+            if decision is Decision.BLOCK_AND_NOTIFY:
+                await self._send_quietly(user_id, RATE_LIMITED_TEXT, log)
             return
         try:
             await self._whatsapp.mark_read(message.wa_message_id, typing=True)
@@ -175,6 +194,19 @@ class ConversationService:
             await session.commit()
         return phone, texts, attachments
 
+    async def _send_quietly(
+        self, user_id: uuid.UUID, text: str, log: structlog.stdlib.BoundLogger
+    ) -> None:
+        async with self._sessionmaker() as session:
+            user = await session.get(User, user_id)
+            phone = user.phone if user else None
+        if phone is None:
+            return
+        try:
+            await self._whatsapp.send_text(phone, text)
+        except WhatsAppError as exc:
+            log.error("send_failed", error=str(exc))
+
     async def _reply(
         self,
         session: AsyncSession,
@@ -216,7 +248,7 @@ class ConversationService:
             attachments=attachments,
         )
         try:
-            result = await self._orchestrator.run(history, ctx)
+            result = await self._orchestrator.run(history, ctx, untrusted_input=bool(images))
         except LLMError as exc:
             log.error("llm_failed", error=str(exc), status_code=exc.status_code)
             # desfaz o que as ferramentas fizeram: o usuário vai repetir o pedido
@@ -233,6 +265,7 @@ class ConversationService:
     ) -> tuple[str, tuple[Image, ...]]:
         """Transforma a mensagem recebida em texto (e imagens) para o modelo."""
         if message.kind in {"text", "button", "interactive", "location"} and message.text:
+            self._ensure_fits(message.text)
             return message.text, ()
         if message.kind == "audio" and message.media_id:
             transcript = await self._transcribe(message.media_id, log)
@@ -272,9 +305,15 @@ class ConversationService:
             raise _EarlyReplyError(IMAGE_FAILED_TEXT)
         return Image(mime, media.content)
 
+    def _ensure_fits(self, text: str) -> None:
+        limit = self._settings.max_input_chars
+        if len(text) > limit:
+            raise _EarlyReplyError(TOO_LONG_TEXT.format(limit=limit))
+
     async def _store_inbound_text(
         self, session: AsyncSession, message: InboundMessage, text: str
     ) -> None:
+        self._ensure_fits(text)
         row = await session.scalar(
             select(Message).where(Message.wa_message_id == message.wa_message_id)
         )

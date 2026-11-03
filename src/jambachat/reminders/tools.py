@@ -2,11 +2,13 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.recurrence import Recurrence, describe
 from jambachat.reminders.service import (
+    MAX_PENDING_PER_USER,
+    ReminderLimitError,
     ReminderNotFoundError,
     cancel_reminder,
     create_reminder,
@@ -15,14 +17,18 @@ from jambachat.reminders.service import (
     snooze_reminder,
 )
 from jambachat.timeutils import format_local, parse_local_datetime
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 
 NOT_FOUND = "lembrete não encontrado; liste os lembretes para obter o id correto"
+LIMIT_REACHED = (
+    f"limite de {MAX_PENDING_PER_USER} lembretes pendentes atingido; "
+    "peça ao usuário para cancelar alguns antes"
+)
 MAX_HORIZON = timedelta(days=5 * 365)
 PAST_TOLERANCE = timedelta(minutes=1)
 
 
-class CreateReminderArgs(BaseModel):
+class CreateReminderArgs(ToolArgs):
     text: str = Field(min_length=1, max_length=500, description="O que lembrar, curto e claro")
     due_at: str = Field(
         description="Data e hora da primeira ocorrência em ISO 8601, ex.: 2026-11-07T09:00. "
@@ -31,15 +37,15 @@ class CreateReminderArgs(BaseModel):
     recurrence: Recurrence | None = Field(default=None, description="Só se o lembrete repetir")
 
 
-class ListRemindersArgs(BaseModel):
+class ListRemindersArgs(ToolArgs):
     pass
 
 
-class CancelReminderArgs(BaseModel):
+class CancelReminderArgs(ToolArgs):
     reminder_id: str = Field(description="Id do lembrete, obtido em list_reminders")
 
 
-class UpdateReminderArgs(BaseModel):
+class UpdateReminderArgs(ToolArgs):
     reminder_id: str = Field(description="Id do lembrete, obtido em list_reminders")
     text: str | None = Field(default=None, min_length=1, max_length=500, description="Novo texto")
     due_at: str | None = Field(
@@ -51,7 +57,7 @@ class UpdateReminderArgs(BaseModel):
     )
 
 
-class SnoozeReminderArgs(BaseModel):
+class SnoozeReminderArgs(ToolArgs):
     minutes: int = Field(ge=1, le=1440, description="Quantos minutos adiar")
     reminder_id: str | None = Field(
         default=None, description="Id do lembrete; se omitido, adia o último lembrete enviado"
@@ -83,7 +89,10 @@ async def create(ctx: ToolContext, args: CreateReminderArgs) -> dict[str, Any]:
     tz = ZoneInfo(ctx.user.timezone)
     due_at = _due_at(args.due_at, ctx)
     rule = args.recurrence.to_rrule() if args.recurrence else None
-    reminder = await create_reminder(ctx.session, ctx.user, args.text.strip(), due_at, rule)
+    try:
+        reminder = await create_reminder(ctx.session, ctx.user, args.text.strip(), due_at, rule)
+    except ReminderLimitError as exc:
+        raise ToolError(LIMIT_REACHED) from exc
     return {"created": _view(reminder, tz)}
 
 
@@ -129,6 +138,8 @@ async def snooze(ctx: ToolContext, args: SnoozeReminderArgs) -> dict[str, Any]:
         )
     except ReminderNotFoundError as exc:
         raise ToolError(NOT_FOUND) from exc
+    except ReminderLimitError as exc:
+        raise ToolError(LIMIT_REACHED) from exc
     return {"snoozed": _view(reminder, ZoneInfo(ctx.user.timezone))}
 
 
@@ -146,12 +157,14 @@ REMINDER_TOOLS = [
         "Cancela um lembrete pendente (em recorrentes, cancela a série).",
         CancelReminderArgs,
         cancel,
+        destructive=True,
     ),
     Tool(
         "update_reminder",
         "Altera texto, data e hora ou repetição de um lembrete pendente.",
         UpdateReminderArgs,
         update,
+        destructive=True,
     ),
     Tool(
         "snooze_reminder",

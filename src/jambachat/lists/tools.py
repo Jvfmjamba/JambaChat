@@ -3,14 +3,14 @@ from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 
 from jambachat.db.base import utcnow
 from jambachat.lists.models import ListItem
 from jambachat.text import fold
 from jambachat.timeutils import as_utc
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 
 MAX_ITEMS_PER_LIST = 200
 MAX_LISTS = 30
@@ -19,20 +19,20 @@ _PREFIX = re.compile(r"^lista (de |do |da |dos |das )?")
 ListName = Field(min_length=1, max_length=60, description='Nome da lista, ex.: "compras"')
 
 
-class AddItemsArgs(BaseModel):
+class AddItemsArgs(ToolArgs):
     list_name: str = ListName
     items: list[str] = Field(
         min_length=1, max_length=50, description="Itens a adicionar, um por posição"
     )
 
 
-class ShowListArgs(BaseModel):
+class ShowListArgs(ToolArgs):
     list_name: str | None = Field(
         default=None, max_length=60, description="Lista a mostrar; omita para ver todas as listas"
     )
 
 
-class UpdateItemsArgs(BaseModel):
+class UpdateItemsArgs(ToolArgs):
     list_name: str = ListName
     action: Literal["marcar", "desmarcar", "remover", "limpar_marcados", "apagar_lista"] = Field(
         description="marcar/desmarcar/remover itens; limpar_marcados tira os já marcados; "
@@ -211,5 +211,6 @@ LIST_TOOLS = [
         "Marca, desmarca ou remove itens de uma lista, limpa os marcados ou apaga a lista.",
         UpdateItemsArgs,
         update_items,
+        destructive=True,
     ),
 ]

@@ -121,6 +121,30 @@ async def test_snooze_last_sent_reminder_creates_new_one(session: AsyncSession) 
     assert result["snoozed"]["due_at"] == "ter, 03/11/2026 às 12:10"
 
 
+async def test_pending_reminders_are_capped(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jambachat.reminders import service
+
+    monkeypatch.setattr(service, "MAX_PENDING_PER_USER", 2)
+    user = await new_user(session, "1")
+    for _ in range(2):
+        await run(session, user, "create_reminder", text="x", due_at="2026-11-10T09:00")
+    blocked = await run(session, user, "create_reminder", text="x", due_at="2026-11-10T09:00")
+
+    assert "limite" in blocked["error"]
+    assert (await run(session, user, "list_reminders"))["count"] == 2
+
+
+async def test_unknown_arguments_are_rejected(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    result = await run(
+        session, user, "list_reminders", user_id="00000000-0000-0000-0000-000000000000"
+    )
+
+    assert result["error"] == "argumentos inválidos"
+
+
 async def test_update_reminder(session: AsyncSession) -> None:
     user = await new_user(session, "1")
     created = await run(

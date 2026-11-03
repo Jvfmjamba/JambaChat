@@ -1,11 +1,12 @@
+import re
 from functools import lru_cache
 from typing import Any
 from zoneinfo import ZoneInfo, available_timezones
 
-from pydantic import BaseModel, Field
+from pydantic import Field, field_validator
 
 from jambachat.timeutils import format_local
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 
 TIMEZONE_ALIASES = {
     "brasilia": "America/Sao_Paulo",
@@ -45,7 +46,13 @@ def resolve_timezone(value: str) -> str:
     return zone
 
 
-class UpdateProfileArgs(BaseModel):
+# Nome e cidade entram no prompt de sistema de toda conversa: só texto simples,
+# para que ninguém grave instruções ali (ex.: via página da web lida pela IA).
+NAME_RE = re.compile(r"^[^\W_][\w .'\-]*$")
+CITY_RE = re.compile(r"^[\w .,'\-()/]*$")
+
+
+class UpdateProfileArgs(ToolArgs):
     name: str | None = Field(
         default=None, min_length=1, max_length=60, description="Como o usuário quer ser chamado"
     )
@@ -58,8 +65,22 @@ class UpdateProfileArgs(BaseModel):
         description='Cidade padrão para clima, ex.: "Recife, PE". Texto vazio remove.',
     )
 
+    @field_validator("name")
+    @classmethod
+    def _plain_name(cls, value: str | None) -> str | None:
+        if value is not None and not NAME_RE.fullmatch(value.strip()):
+            raise ValueError("use só letras, números, espaço, ponto, hífen ou apóstrofo")
+        return value
 
-class GetProfileArgs(BaseModel):
+    @field_validator("home_city")
+    @classmethod
+    def _plain_city(cls, value: str | None) -> str | None:
+        if value is not None and not CITY_RE.fullmatch(value.strip()):
+            raise ValueError("cidade com caracteres inválidos")
+        return value
+
+
+class GetProfileArgs(ToolArgs):
     pass
 
 
@@ -96,6 +117,7 @@ PROFILE_TOOLS = [
         "Altera preferências do usuário: nome, fuso horário e cidade padrão.",
         UpdateProfileArgs,
         update_profile,
+        destructive=True,
     ),
     Tool("get_profile", "Mostra as preferências salvas do usuário.", GetProfileArgs, get_profile),
 ]

@@ -14,6 +14,7 @@ from jambachat.llm.factory import create_llm_client
 from jambachat.media.transcriber import Transcriber
 from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
 from jambachat.security.crypto import get_cipher
+from jambachat.security.ratelimit import RateLimiter
 from jambachat.tools.catalog import build_registry
 from jambachat.whatsapp.client import WhatsAppClient
 
@@ -37,7 +38,13 @@ class Container:
             await close()
 
 
+class InsecureConfigError(RuntimeError):
+    pass
+
+
 def build_container(settings: Settings) -> Container:
+    if settings.is_production and (problems := settings.production_problems()):
+        raise InsecureConfigError("configuração insegura para produção: " + "; ".join(problems))
     get_cipher()
     http = httpx.AsyncClient(follow_redirects=False)
     sessionmaker = get_sessionmaker()
@@ -64,7 +71,12 @@ def build_container(settings: Settings) -> Container:
         settings=settings,
         sessionmaker=sessionmaker,
         conversation=ConversationService(
-            sessionmaker, whatsapp, orchestrator, settings, _transcriber(settings, http)
+            sessionmaker,
+            whatsapp,
+            orchestrator,
+            settings,
+            transcriber=_transcriber(settings, http),
+            limiter=RateLimiter.from_settings(settings),
         ),
         scheduler=scheduler,
         closers=[http.aclose, get_engine().dispose],

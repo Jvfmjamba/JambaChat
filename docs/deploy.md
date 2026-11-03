@@ -55,3 +55,10 @@ docker compose exec db pg_dump -U jambachat jambachat | gzip > backup-$(date +%F
 ```
 
 Guarde os backups junto com as chaves de criptografia: um sem o outro não serve.
+
+## Checklist de segurança
+
+- Gere senhas fortes: `POSTGRES_PASSWORD` (também na `DATABASE_URL`) e `WHATSAPP_VERIFY_TOKEN` com 16+ caracteres.
+- Use `deploy/compose.yaml`: só o Caddy publica portas (80/443), com HTTPS automático, corpo limitado a 1 MB e apenas `/webhook` e `/health` acessíveis de fora. Não exponha a porta 8000 diretamente.
+- Guarde `ENCRYPTION_KEYS` e `INDEX_KEY` num gerenciador de senhas. Sem elas os dados do banco não podem ser lidos. Não deixe o `.env` em pasta sincronizada sem verificação em duas etapas na conta.
+- Use `APP_ENV=production` (já é o padrão da imagem Docker).

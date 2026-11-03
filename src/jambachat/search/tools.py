@@ -1,13 +1,13 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from jambachat.search.tavily import TavilyClient, Topic
 from jambachat.search.wikipedia import WikipediaClient
-from jambachat.tools.registry import Tool, ToolContext
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext
 
 
-class WebSearchArgs(BaseModel):
+class WebSearchArgs(ToolArgs):
     query: str = Field(
         min_length=2, max_length=300, description="Consulta objetiva, de preferência em português"
     )
@@ -43,11 +43,12 @@ def build_search_tools(client: TavilyClient) -> list[Tool]:
             "horários e qualquer coisa que você não saiba com certeza.",
             WebSearchArgs,
             search,
+            reads_untrusted=True,
         )
     ]
 
 
-class EncyclopediaArgs(BaseModel):
+class EncyclopediaArgs(ToolArgs):
     query: str = Field(
         min_length=2, max_length=200, description="Pessoa, lugar, conceito ou acontecimento"
     )
@@ -64,5 +65,6 @@ def build_encyclopedia_tools(client: WikipediaClient) -> list[Tool]:
             "Não serve para notícias ou fatos de hoje.",
             EncyclopediaArgs,
             lookup,
+            reads_untrusted=True,
         )
     ]

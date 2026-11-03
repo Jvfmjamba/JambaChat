@@ -11,7 +11,6 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
-from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -25,7 +24,7 @@ from jambachat.llm.types import LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.scheduler import ReminderDispatcher
 from jambachat.tools.catalog import build_registry
-from jambachat.tools.registry import Tool, ToolContext, ToolRegistry
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolRegistry
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
 from jambachat.whatsapp.inbound import InboundMessage
@@ -121,7 +120,7 @@ async def test_llm_failure_rolls_back_tool_writes_on_postgres(migrated: None) ->
     engine = create_async_engine(POSTGRES_URL)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
 
-    class NoArgs(BaseModel):
+    class NoArgs(ToolArgs):
         pass
 
     async def rename(ctx: ToolContext, args: NoArgs) -> dict[str, object]:

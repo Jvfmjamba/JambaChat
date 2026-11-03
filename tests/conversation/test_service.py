@@ -7,7 +7,6 @@ from typing import Any
 
 import httpx
 import respx
-from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -24,6 +23,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import (
     INTERNAL_ERROR_TEXT,
     LLM_DOWN_TEXT,
+    RATE_LIMITED_TEXT,
     UNSUPPORTED_TEXT,
     WELCOME_TEXT,
     ConversationService,
@@ -32,7 +32,7 @@ from jambachat.db.models import Base
 from jambachat.db.session import tune_sqlite
 from jambachat.llm.types import ChatMessage, LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
-from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolRegistry
+from jambachat.tools.registry import Attachment, Tool, ToolArgs, ToolContext, ToolRegistry
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
 from jambachat.whatsapp.inbound import InboundMessage
@@ -41,7 +41,7 @@ from tests.fakes import GRAPH_MESSAGES_URL, ScriptedLLM, graph_ok, make_settings
 Maker = async_sessionmaker[AsyncSession]
 
 
-class NoArgs(BaseModel):
+class NoArgs(ToolArgs):
     pass
 
 
@@ -59,7 +59,9 @@ def inbound(text: str | None, kind: str = "text") -> InboundMessage:
     )
 
 
-async def converse(sessionmaker: Maker, llm: ScriptedLLM, *messages: InboundMessage) -> list[str]:
+async def converse(
+    sessionmaker: Maker, llm: ScriptedLLM, *messages: InboundMessage, **settings: Any
+) -> list[str]:
     with respx.mock:
         route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
         async with httpx.AsyncClient() as http:
@@ -67,7 +69,7 @@ async def converse(sessionmaker: Maker, llm: ScriptedLLM, *messages: InboundMess
                 http, access_token="t", phone_number_id="123", api_version="v23.0"
             )
             service = ConversationService(
-                sessionmaker, whatsapp, Orchestrator(llm, ToolRegistry()), make_settings()
+                sessionmaker, whatsapp, Orchestrator(llm, ToolRegistry()), make_settings(**settings)
             )
             for message in messages:
                 user_id = await service.register_inbound(message)
@@ -149,6 +151,30 @@ async def test_history_expires_and_starts_with_user(sessionmaker: Maker) -> None
         assert await load_history(session, user, now + timedelta(hours=7)) == []
 
 
+async def test_too_long_message_never_reaches_llm_or_history(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Oi!"))
+    replies = await converse(
+        sessionmaker, llm, inbound("a" * 51), inbound("oi"), max_input_chars=50
+    )
+
+    assert "longa demais" in replies[0]
+    assert replies[1] == "Oi!"
+    assert [m.content for m in llm.calls[0][1]] == ["oi"]
+
+
+async def test_flood_is_rate_limited_with_a_single_notice(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("1"), LLMResponse("2"))
+    replies = await converse(
+        sessionmaker,
+        llm,
+        *(inbound(f"msg {i}") for i in range(5)),
+        rate_limit_per_minute=2,
+    )
+
+    assert replies == ["1", "2", RATE_LIMITED_TEXT]
+    assert len(llm.calls) == 2
+
+
 async def test_burst_of_messages_gets_a_single_reply(sessionmaker: Maker) -> None:
     llm = ScriptedLLM(LLMResponse("Respondendo às duas."), LLMResponse("Ajuda?"))
     first, second, command = inbound("oi"), inbound("tudo bem?"), inbound("/ajuda")
@@ -195,6 +221,20 @@ async def test_location_goes_to_the_model(sessionmaker: Maker) -> None:
     assert llm.calls[0][1][0].content == text
 
 
+async def test_reactions_do_not_count_against_the_rate_limit(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("1"), LLMResponse("2"))
+    replies = await converse(
+        sessionmaker,
+        llm,
+        *(inbound(None, kind="reaction") for _ in range(3)),
+        inbound("a"),
+        inbound("b"),
+        rate_limit_per_minute=2,
+    )
+
+    assert replies == ["1", "2"]
+
+
 async def test_unexpected_error_still_answers(sessionmaker: Maker) -> None:
     replies = await converse(sessionmaker, ScriptedLLM(RuntimeError("bug")), inbound("oi"))
     assert replies == [INTERNAL_ERROR_TEXT]
@@ -237,13 +277,23 @@ async def test_status_command_is_admin_only(sessionmaker: Maker) -> None:
     replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
     assert "/ajuda" in replies[0]
 
-    async with sessionmaker() as session:
-        user = (await session.scalars(select(User))).one()
-        user.is_admin = True
-        await session.commit()
-    replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
+    replies = await converse(
+        sessionmaker, ScriptedLLM(), inbound("/status"), admin_phones="5511999990000"
+    )
     assert replies[0].startswith("*JambaChat")
     assert "Usuários: 1" in replies[0]
+
+
+async def test_removing_a_phone_from_admin_phones_revokes_access(sessionmaker: Maker) -> None:
+    await converse(sessionmaker, ScriptedLLM(), inbound("/ajuda"), admin_phones="5511999990000")
+    async with sessionmaker() as session:
+        assert (await session.scalars(select(User))).one().is_admin
+
+    replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
+
+    assert "/ajuda" in replies[0]
+    async with sessionmaker() as session:
+        assert not (await session.scalars(select(User))).one().is_admin
 
 
 async def test_reminder_buttons_skip_the_model(sessionmaker: Maker) -> None:

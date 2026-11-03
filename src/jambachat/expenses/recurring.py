@@ -4,13 +4,13 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from jambachat.expenses.models import Category, EntryKind, Expense, RecurringEntry
 from jambachat.money import format_brl, parse_amount
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
 from jambachat.users.models import User
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,7 @@ def first_run(day: int, today: date, include_today: bool) -> date:
     return next_occurrence(day, today)
 
 
-class AddRecurringArgs(BaseModel):
+class AddRecurringArgs(ToolArgs):
     amount: str = Field(description='Valor em reais, ex.: "1500" ou "39,90"')
     description: str = Field(min_length=1, max_length=200, description="Ex.: aluguel, Netflix")
     category: Category = Field(default=Category.OUTROS)
@@ -55,11 +55,11 @@ class AddRecurringArgs(BaseModel):
     )
 
 
-class ListRecurringArgs(BaseModel):
+class ListRecurringArgs(ToolArgs):
     pass
 
 
-class CancelRecurringArgs(BaseModel):
+class CancelRecurringArgs(ToolArgs):
     recurring_id: str = Field(description="Id obtido em list_recurring_entries")
 
 
@@ -145,6 +145,7 @@ RECURRING_TOOLS = [
         "Encerra um lançamento recorrente (os já registrados continuam).",
         CancelRecurringArgs,
         cancel_recurring,
+        destructive=True,
     ),
 ]
 

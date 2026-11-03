@@ -82,3 +82,24 @@ async def test_skips_users_outside_the_window(sessionmaker: Maker) -> None:
     counts, texts = await run(sessionmaker, FIRST)
     assert counts == [0]
     assert texts == []
+
+
+async def test_failed_send_is_retried_later(sessionmaker: Maker) -> None:
+    await seed(sessionmaker, FIRST - timedelta(hours=1))
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(
+            side_effect=[httpx.Response(500), httpx.Response(200, json={"messages": [{"id": "x"}]})]
+        )
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            job = MonthlySummaryJob(sessionmaker, whatsapp)
+            counts = [
+                await job.run_once(FIRST),
+                await job.run_once(FIRST + timedelta(minutes=5)),
+                await job.run_once(FIRST + timedelta(hours=2)),
+                await job.run_once(FIRST + timedelta(hours=3)),
+            ]
+    assert counts == [0, 0, 1, 0]
+    assert route.call_count == 2

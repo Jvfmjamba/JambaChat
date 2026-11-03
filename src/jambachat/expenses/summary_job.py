@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -11,12 +12,13 @@ from jambachat.llm.types import ChatMessage
 from jambachat.money import format_brl
 from jambachat.timeutils import as_utc, local_range
 from jambachat.users.models import User
-from jambachat.whatsapp.client import WhatsAppClient, WhatsAppError
+from jambachat.whatsapp.client import WhatsAppClient
 
 logger = structlog.get_logger(__name__)
 
 SEND_FROM_HOUR = 9
 SERVICE_WINDOW = timedelta(hours=24)
+RETRY_DELAY = timedelta(hours=1)
 MONTHS = (
     "janeiro",
     "fevereiro",
@@ -58,6 +60,7 @@ class MonthlySummaryJob:
     ) -> None:
         self._sessionmaker = sessionmaker
         self._whatsapp = whatsapp
+        self._retry_at: dict[uuid.UUID, datetime] = {}
 
     async def run_once(self, now: datetime | None = None) -> int:
         now = now or datetime.now(UTC)
@@ -69,10 +72,17 @@ class MonthlySummaryJob:
                 )
             )
             for user in users:
+                retry_at = self._retry_at.get(user.id)
+                if retry_at is not None and now < retry_at:
+                    continue
                 try:
-                    if await self._maybe_send(session, user, now):
-                        sent += 1
-                except WhatsAppError as exc:
+                    # savepoint por usuário: um erro não desfaz o que já foi enviado aos outros
+                    async with session.begin_nested():
+                        if await self._maybe_send(session, user, now):
+                            sent += 1
+                    self._retry_at.pop(user.id, None)
+                except Exception as exc:
+                    self._retry_at[user.id] = now + RETRY_DELAY
                     logger.warning("monthly_summary_failed", user_id=str(user.id), error=str(exc))
             await session.commit()
         return sent
@@ -90,12 +100,13 @@ class MonthlySummaryJob:
             return False
         lower, upper = local_range(start, end, tz)
         summary = summarize(await find_entries(session, user, EntryFilter(lower, upper)))
-        user.last_summary_month = key
         if summary.count == 0:
+            user.last_summary_month = key
             return False
         top = sorted(summary.by_category.items(), key=lambda item: item[1], reverse=True)[:3]
         text = summary_text(start, summary.expense_cents, summary.income_cents, top)
         await self._whatsapp.send_text(user.phone, text)
+        user.last_summary_month = key
         await save_turn(session, user.id, [ChatMessage("assistant", text)])
         logger.info("monthly_summary_sent", user_id=str(user.id), month=key)
         return True

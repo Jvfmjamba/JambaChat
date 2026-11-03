@@ -6,13 +6,14 @@ from jambachat.reminders.tools import REMINDER_TOOLS
 from jambachat.search.tavily import TavilyClient
 from jambachat.search.tools import build_search_tools
 from jambachat.tools.registry import Tool, ToolRegistry
+from jambachat.users.tools import PROFILE_TOOLS
 from jambachat.utilities.tools import OFFLINE_TOOLS, build_utility_tools
 
 
 def build_registry(
     settings: Settings | None = None, http: httpx.AsyncClient | None = None
 ) -> ToolRegistry:
-    tools: list[Tool] = [*REMINDER_TOOLS, *EXPENSE_TOOLS, *OFFLINE_TOOLS]
+    tools: list[Tool] = [*REMINDER_TOOLS, *EXPENSE_TOOLS, *OFFLINE_TOOLS, *PROFILE_TOOLS]
     if http is not None:
         tools += build_utility_tools(http)
         tavily_key = settings.tavily_api_key.get_secret_value() if settings else ""

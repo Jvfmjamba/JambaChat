@@ -47,8 +47,12 @@ class ExchangeArgs(BaseModel):
 
 
 class WeatherArgs(BaseModel):
-    city: str = Field(
-        min_length=2, max_length=100, description='Cidade, opcionalmente com UF: "Campinas, SP"'
+    city: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=100,
+        description='Cidade, opcionalmente com UF: "Campinas, SP". Omita para usar a cidade '
+        "padrão do usuário.",
     )
     days: int = Field(default=1, ge=1, le=7, description="Quantos dias de previsão, de 1 a 7")
 
@@ -123,7 +127,10 @@ def build_utility_tools(http: httpx.AsyncClient) -> list[Tool]:
         return result
 
     async def forecast(ctx: ToolContext, args: WeatherArgs) -> dict[str, Any]:
-        place = await weather.locate(args.city)
+        city = args.city or ctx.user.home_city
+        if not city:
+            raise ToolError("qual cidade? o usuário não tem cidade padrão salva")
+        place = await weather.locate(city)
         return {"place": place.label, **await weather.forecast(place, args.days)}
 
     async def lookup_cep(ctx: ToolContext, args: CepArgs) -> dict[str, Any]:

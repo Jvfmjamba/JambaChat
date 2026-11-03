@@ -25,7 +25,7 @@ class Orchestrator:
         self._max_iterations = max_iterations
 
     async def run(self, history: Sequence[ChatMessage], ctx: ToolContext) -> TurnResult:
-        system = build_system_prompt(ctx.now, ctx.user.timezone, ctx.user.name)
+        system = build_system_prompt(ctx.now, ctx.user.timezone, ctx.user.name, ctx.user.home_city)
         specs = self._registry.specs()
         conversation = list(history)
         produced: list[ChatMessage] = []

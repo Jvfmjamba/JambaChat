@@ -13,6 +13,7 @@ class User(UUIDPrimaryKey, CreatedAt, Base):
     phone_hash: Mapped[str] = mapped_column(String(64), unique=True)
     phone: Mapped[str] = mapped_column(EncryptedText)
     name: Mapped[str | None] = mapped_column(EncryptedText)
+    home_city: Mapped[str | None] = mapped_column(EncryptedText)
     timezone: Mapped[str] = mapped_column(String(64), default="America/Sao_Paulo")
     is_admin: Mapped[bool] = mapped_column(default=False)
     last_inbound_at: Mapped[datetime | None]

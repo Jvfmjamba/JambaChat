@@ -209,3 +209,13 @@ async def test_lookup_cep(registry: ToolRegistry, ctx: ToolContext) -> None:
     assert found["complement"] is None
     assert "não encontrado" in (await run(registry, ctx, "lookup_cep", cep="99999999"))["error"]
     assert "8 dígitos" in (await run(registry, ctx, "lookup_cep", cep="123"))["error"]
+
+
+async def test_weather_uses_home_city(registry: ToolRegistry, ctx: ToolContext) -> None:
+    assert "qual cidade" in (await run(registry, ctx, "weather_forecast"))["error"]
+
+    ctx.user.home_city = "Xyzzyville"
+    with respx.mock:
+        route = respx.get(GEOCODING_URL).respond(json={})
+        await run(registry, ctx, "weather_forecast")
+    assert route.calls[0].request.url.params["name"] == "Xyzzyville"

@@ -13,9 +13,11 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 
 • *Lembretes:* "me lembra de pagar a luz dia 10 às 9h"
 • *Gastos:* "gastei 42 no ifood", "quanto gastei esse mês?"
+• *Orçamento:* "limite de 800 pra mercado", "me manda a planilha"
 • *Listas:* "põe leite e pão na lista de compras"
 • *Pesquisa:* "quem ganhou o jogo ontem?"
 • *Utilitários:* câmbio, clima, CEP, contas e datas
+• *Perfil:* "me chama de Jão", "mudei pra Manaus"
 • *Áudio e foto:* mande um áudio ou a foto de uma nota fiscal
 
 *Comandos*
@@ -25,7 +27,7 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 
 CLEARED_TEXT = "Pronto, esqueci o assunto. Pode começar do zero."
 DELETE_CONFIRM_TEXT = (
-    "Isso apaga *todos* os seus lembretes, gastos e conversas, sem volta.\n"
+    "Isso apaga *todos* os seus lembretes, gastos, listas e conversas, sem volta.\n"
     "Se tiver certeza, mande: /apagar-meus-dados confirmar"
 )
 DELETED_TEXT = "Seus dados foram apagados. Se mandar outra mensagem, começo do zero."

@@ -196,3 +196,46 @@ async def test_budgets(session: AsyncSession) -> None:
         "maior que zero"
         in (await run(session, user, "set_budget", category="Lazer", amount="0"))["error"]
     )
+
+
+async def test_export_entries_as_csv(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    await run(
+        session,
+        user,
+        "add_entry",
+        amount="1.234,50",
+        description="=HYPERLINK(x)",
+        category="Moradia",
+        date="2026-11-02",
+    )
+    await run(
+        session,
+        user,
+        "add_entry",
+        amount=3000,
+        description="salário",
+        kind="receita",
+        category="Salário",
+    )
+    ctx = ToolContext(session, user, make_settings(), NOW.astimezone(ZoneInfo(user.timezone)))
+
+    result = json.loads(await build_registry().execute(ToolCall("c", "export_entries", {}), ctx))
+
+    assert result["exported"] == 2
+    [attachment] = ctx.attachments
+    assert attachment.filename == "jambachat_2026-11-01_a_2026-11-20.csv"
+    text = attachment.content.decode("utf-8")
+    assert text.startswith("﻿Data;Tipo;Categoria;Descrição;Valor\r\n")
+    assert "02/11/2026;gasto;Moradia;'=HYPERLINK(x);-1234,50" in text
+    assert "20/11/2026;receita;Salário;salário;3000,00" in text
+
+    empty_ctx = ToolContext(session, user, make_settings(), ctx.now)
+    empty = json.loads(
+        await build_registry().execute(
+            ToolCall("c", "export_entries", {"start_date": "2025-01-01", "end_date": "2025-01-31"}),
+            empty_ctx,
+        )
+    )
+    assert "não há lançamentos" in empty["error"]
+    assert empty_ctx.attachments == []

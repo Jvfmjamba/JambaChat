@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import respx
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -21,8 +22,8 @@ from jambachat.conversation.service import (
     UNSUPPORTED_TEXT,
     ConversationService,
 )
-from jambachat.llm.types import LLMError, LLMResponse
-from jambachat.tools.registry import ToolRegistry
+from jambachat.llm.types import LLMError, LLMResponse, ToolCall
+from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolRegistry
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
 from jambachat.whatsapp.inbound import InboundMessage
@@ -182,3 +183,39 @@ async def test_location_goes_to_the_model(sessionmaker: Maker) -> None:
 async def test_unexpected_error_still_answers(sessionmaker: Maker) -> None:
     replies = await converse(sessionmaker, ScriptedLLM(RuntimeError("bug")), inbound("oi"))
     assert replies == [INTERNAL_ERROR_TEXT]
+
+
+async def test_attachments_are_sent_after_the_reply(sessionmaker: Maker) -> None:
+    class NoArgs(BaseModel):
+        pass
+
+    async def attach(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
+        ctx.attachments.append(Attachment("a.csv", "text/csv", b"x;y", "planilha"))
+        return {"ok": True}
+
+    llm = ScriptedLLM(
+        LLMResponse("", (ToolCall("c1", "attach", {}),)), LLMResponse("Segue a planilha.")
+    )
+    with respx.mock:
+        messages = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        upload = respx.post("https://graph.facebook.com/v23.0/123/media").respond(
+            json={"id": "media-1"}
+        )
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            registry = ToolRegistry([Tool("attach", "anexa", NoArgs, attach)])
+            service = ConversationService(
+                sessionmaker, whatsapp, Orchestrator(llm, registry), make_settings()
+            )
+            message = inbound("me manda a planilha")
+            user_id = await service.register_inbound(message)
+            assert user_id is not None
+            await service.process(user_id, message)
+
+    bodies = [json.loads(c.request.content) for c in messages.calls]
+    sent = [b for b in bodies if "type" in b]
+    assert [b["type"] for b in sent] == ["text", "document"]
+    assert sent[1]["document"] == {"id": "media-1", "filename": "a.csv", "caption": "planilha"}
+    assert b'filename="a.csv"' in upload.calls[0].request.content

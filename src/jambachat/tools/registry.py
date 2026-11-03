@@ -1,6 +1,6 @@
 import json
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -20,11 +20,20 @@ class ToolError(Exception):
 
 
 @dataclass(frozen=True)
+class Attachment:
+    filename: str
+    mime_type: str
+    content: bytes
+    caption: str = ""
+
+
+@dataclass(frozen=True)
 class ToolContext:
     session: AsyncSession
     user: User
     settings: Settings
     now: datetime
+    attachments: list[Attachment] = field(default_factory=list)
 
 
 Handler = Callable[[ToolContext, Any], Awaitable[dict[str, Any]]]

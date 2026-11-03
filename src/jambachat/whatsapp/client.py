@@ -54,6 +54,7 @@ class WhatsAppClient:
     ) -> None:
         self._http = http
         self._graph = f"{GRAPH_URL}/{api_version}"
+        self._phone_number_id = phone_number_id
         self._url = f"{self._graph}/{phone_number_id}/messages"
         self._headers = {"Authorization": f"Bearer {access_token}"}
         self._timeout = timeout_seconds
@@ -83,6 +84,39 @@ class WhatsAppClient:
             ]
         data = await self._post(
             {"messaging_product": "whatsapp", "to": to, "type": "template", "template": template}
+        )
+        return _message_id(data)
+
+    async def upload_media(self, content: bytes, mime_type: str, filename: str) -> str:
+        try:
+            response = await self._http.post(
+                f"{self._graph}/{self._phone_number_id}/media",
+                headers=self._headers,
+                data={"messaging_product": "whatsapp", "type": mime_type},
+                files={"file": (filename, content, mime_type)},
+                timeout=self._timeout * 2,
+            )
+        except httpx.HTTPError as exc:
+            raise WhatsAppError(f"falha de rede ao enviar mídia: {type(exc).__name__}") from exc
+        if response.status_code >= 400:
+            raise WhatsAppError(
+                f"upload respondeu {response.status_code}: {response.text[:300]}",
+                status_code=response.status_code,
+            )
+        try:
+            return str(response.json()["id"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise WhatsAppError("upload sem id de mídia") from exc
+
+    async def send_document(
+        self, to: str, content: bytes, mime_type: str, filename: str, caption: str = ""
+    ) -> str:
+        media_id = await self.upload_media(content, mime_type, filename)
+        document: dict[str, Any] = {"id": media_id, "filename": filename}
+        if caption:
+            document["caption"] = caption
+        data = await self._post(
+            {"messaging_product": "whatsapp", "to": to, "type": "document", "document": document}
         )
         return _message_id(data)
 

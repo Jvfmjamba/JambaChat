@@ -18,7 +18,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.llm.types import ChatMessage, Image, LLMError
 from jambachat.media.transcriber import Transcriber, TranscriptionError
 from jambachat.timeutils import as_utc
-from jambachat.tools.registry import ToolContext
+from jambachat.tools.registry import Attachment, ToolContext
 from jambachat.users.models import User
 from jambachat.users.repository import get_or_create_user
 from jambachat.whatsapp.client import MediaTooLargeError, WhatsAppClient, WhatsAppError
@@ -107,9 +107,17 @@ class ConversationService:
                 return
             if reply_to is None:
                 return
-            phone, reply = reply_to
+            phone, reply, attachments = reply_to
             try:
                 await self._whatsapp.send_text(phone, reply)
+                for attachment in attachments:
+                    await self._whatsapp.send_document(
+                        phone,
+                        attachment.content,
+                        attachment.mime_type,
+                        attachment.filename,
+                        attachment.caption,
+                    )
             except WhatsAppError as exc:
                 log.error("send_failed", error=str(exc))
                 return
@@ -123,7 +131,7 @@ class ConversationService:
 
     async def _prepare_reply(
         self, user_id: uuid.UUID, message: InboundMessage, log: structlog.stdlib.BoundLogger
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str, list[Attachment]] | None:
         async with self._sessionmaker() as session:
             user = await session.get(User, user_id)
             if user is None:
@@ -132,9 +140,10 @@ class ConversationService:
                 log.info("message_coalesced")
                 return None
             phone = user.phone
-            reply = await self._reply(session, user, message, log)
+            attachments: list[Attachment] = []
+            reply = await self._reply(session, user, message, log, attachments)
             await session.commit()
-        return phone, reply
+        return phone, reply, attachments
 
     async def _reply(
         self,
@@ -142,6 +151,7 @@ class ConversationService:
         user: User,
         message: InboundMessage,
         log: structlog.stdlib.BoundLogger,
+        attachments: list[Attachment],
     ) -> str:
         try:
             text, images = await self._understand(session, message, log)
@@ -158,7 +168,13 @@ class ConversationService:
         history = await load_history(session, user, now)
         if images:
             history = _attach_images(history, images)
-        ctx = ToolContext(session=session, user=user, settings=self._settings, now=now)
+        ctx = ToolContext(
+            session=session,
+            user=user,
+            settings=self._settings,
+            now=now,
+            attachments=attachments,
+        )
         try:
             result = await self._orchestrator.run(history, ctx)
         except LLMError as exc:

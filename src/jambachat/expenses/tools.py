@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
@@ -17,13 +19,14 @@ from jambachat.expenses.service import (
 )
 from jambachat.money import format_brl, parse_amount
 from jambachat.timeutils import (
+    as_utc,
     format_local_date,
     local_range,
     month_start,
     parse_local_date,
     parse_local_datetime,
 )
-from jambachat.tools.registry import Tool, ToolContext, ToolError
+from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolError
 
 NOT_FOUND = "lançamento não encontrado; liste os lançamentos para obter o id correto"
 MAX_PAST = timedelta(days=10 * 366)
@@ -76,6 +79,10 @@ class UpdateEntryArgs(BaseModel):
     category: Category | None = None
     kind: Kind | None = None
     date: str | None = Field(default=None, description="Nova data (AAAA-MM-DD)")
+
+
+class ExportArgs(PeriodArgs):
+    pass
 
 
 class DeleteEntryArgs(BaseModel):
@@ -258,6 +265,54 @@ async def delete(ctx: ToolContext, args: DeleteEntryArgs) -> dict[str, Any]:
     return {"deleted": _view(entry, ZoneInfo(ctx.user.timezone))}
 
 
+MAX_EXPORT_ROWS = 5000
+
+
+def to_csv(entries: list[Expense], tz: ZoneInfo) -> bytes:
+    """CSV no formato do Excel em português: ponto e vírgula, vírgula decimal e BOM."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+    writer.writerow(["Data", "Tipo", "Categoria", "Descrição", "Valor"])
+    for entry in sorted(entries, key=lambda e: e.occurred_at):
+        sign = -1 if entry.kind == EntryKind.EXPENSE else 1
+        cents = sign * entry.amount_cents
+        writer.writerow(
+            [
+                f"{as_utc(entry.occurred_at).astimezone(tz):%d/%m/%Y}",
+                KIND_LABEL[EntryKind(entry.kind)],
+                entry.category,
+                _safe_cell(entry.description),
+                f"{cents / 100:.2f}".replace(".", ","),
+            ]
+        )
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8")
+
+
+def _safe_cell(value: str) -> str:
+    # evita que planilhas interpretem a descrição como fórmula
+    return "'" + value if value[:1] in {"=", "+", "-", "@", "\t", "\r"} else value
+
+
+async def export(ctx: ToolContext, args: ExportArgs) -> dict[str, Any]:
+    tz = ZoneInfo(ctx.user.timezone)
+    start, end = _period(args, ctx)
+    entries = await find_entries(ctx.session, ctx.user, _filter(start, end, tz))
+    if not entries:
+        raise ToolError("não há lançamentos nesse período")
+    if len(entries) > MAX_EXPORT_ROWS:
+        raise ToolError("período com lançamentos demais; escolha um intervalo menor")
+    filename = f"jambachat_{start:%Y-%m-%d}_a_{end:%Y-%m-%d}.csv"
+    ctx.attachments.append(
+        Attachment(
+            filename,
+            "text/csv",
+            to_csv(entries, tz),
+            f"Lançamentos de {start:%d/%m/%Y} a {end:%d/%m/%Y}",
+        )
+    )
+    return {"exported": len(entries), "file": filename, "period": _period_view(start, end)}
+
+
 EXPENSE_TOOLS = [
     Tool(
         "add_entry",
@@ -286,4 +341,11 @@ EXPENSE_TOOLS = [
         update,
     ),
     Tool("delete_entry", "Apaga um lançamento.", DeleteEntryArgs, delete),
+    Tool(
+        "export_entries",
+        "Gera uma planilha (CSV) com os lançamentos do período e envia como arquivo no "
+        "WhatsApp, logo após a sua resposta.",
+        ExportArgs,
+        export,
+    ),
 ]

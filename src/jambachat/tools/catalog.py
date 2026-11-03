@@ -1,6 +1,7 @@
 import httpx
 
 from jambachat.config import Settings
+from jambachat.expenses.budgets import BUDGET_TOOLS
 from jambachat.expenses.tools import EXPENSE_TOOLS
 from jambachat.reminders.tools import REMINDER_TOOLS
 from jambachat.search.tavily import TavilyClient
@@ -13,7 +14,13 @@ from jambachat.utilities.tools import OFFLINE_TOOLS, build_utility_tools
 def build_registry(
     settings: Settings | None = None, http: httpx.AsyncClient | None = None
 ) -> ToolRegistry:
-    tools: list[Tool] = [*REMINDER_TOOLS, *EXPENSE_TOOLS, *OFFLINE_TOOLS, *PROFILE_TOOLS]
+    tools: list[Tool] = [
+        *REMINDER_TOOLS,
+        *EXPENSE_TOOLS,
+        *BUDGET_TOOLS,
+        *OFFLINE_TOOLS,
+        *PROFILE_TOOLS,
+    ]
     if http is not None:
         tools += build_utility_tools(http)
         tavily_key = settings.tavily_api_key.get_secret_value() if settings else ""

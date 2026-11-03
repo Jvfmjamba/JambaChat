@@ -55,3 +55,18 @@ class Expense(UUIDPrimaryKey, CreatedAt, Base):
     occurred_at: Mapped[datetime] = mapped_column(default=utcnow)
     source: Mapped[EntrySource] = mapped_column(String(16), default=EntrySource.MANUAL)
     external_id: Mapped[str | None] = mapped_column(String(128))
+
+
+TOTAL_BUDGET = "Total"
+
+
+class Budget(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "budgets"
+    __table_args__ = (
+        UniqueConstraint("user_id", "category", name="uq_budgets_user_category"),
+        CheckConstraint("amount_cents > 0", name="amount_positive"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    category: Mapped[str] = mapped_column(String(32))
+    amount_cents: Mapped[int] = mapped_column(BigInteger)

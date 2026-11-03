@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from jambachat.expenses.budgets import budget_alerts
 from jambachat.expenses.models import Category, EntryKind, Expense
 from jambachat.expenses.service import (
     EntryFilter,
@@ -156,13 +157,18 @@ async def add(ctx: ToolContext, args: AddEntryArgs) -> dict[str, Any]:
     tz = ZoneInfo(ctx.user.timezone)
     start = month_start(ctx.now.date())
     month = summarize(await find_entries(ctx.session, ctx.user, _filter(start, ctx.now.date(), tz)))
-    return {
+    result: dict[str, Any] = {
         "added": _view(entry, tz),
         "month_to_date": {
             "expenses": format_brl(month.expense_cents),
             "income": format_brl(month.income_cents),
         },
     }
+    if entry.kind == EntryKind.EXPENSE:
+        alerts = await budget_alerts(ctx.session, ctx.user, ctx.now, entry.category)
+        if alerts:
+            result["budgets"] = alerts
+    return result
 
 
 async def list_entries(ctx: ToolContext, args: ListEntriesArgs) -> dict[str, Any]:

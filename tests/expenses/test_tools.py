@@ -156,3 +156,43 @@ async def test_users_cannot_touch_each_other_entries(session: AsyncSession) -> N
     ]:
         assert "não encontrado" in (await run(session, intruder, name, **args))["error"]
     assert (await run(session, intruder, "list_entries"))["count"] == 0
+
+
+async def test_budgets(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    await run(
+        session, user, "add_entry", amount=300, description="restaurante", category="Alimentação"
+    )
+
+    created = await run(session, user, "set_budget", category="Alimentação", amount="400")
+    assert created["budget"]["spent_this_month"] == "R$ 300,00"
+    assert created["budget"]["used"] == "75%"
+    await run(session, user, "set_budget", category="Total", amount="2.000")
+    await run(session, user, "set_budget", category="Alimentação", amount="350")
+
+    added = await run(
+        session, user, "add_entry", amount=80, description="pizza", category="Alimentação"
+    )
+    by_category = {b["category"]: b for b in added["budgets"]}
+    assert by_category["Alimentação"]["exceeded_by"] == "R$ 30,00"
+    assert by_category["Alimentação"]["remaining"] == "R$ 0,00"
+    assert by_category["Total"]["remaining"] == "R$ 1.620,00"
+
+    no_budget = await run(
+        session, user, "add_entry", amount=10, description="uber", category="Transporte"
+    )
+    assert [b["category"] for b in no_budget["budgets"]] == ["Total"]
+    income = await run(session, user, "add_entry", amount=10, description="pix", kind="receita")
+    assert "budgets" not in income
+
+    listed = await run(session, user, "list_budgets")
+    assert [b["category"] for b in listed["budgets"]] == ["Alimentação", "Total"]
+
+    assert (await run(session, user, "delete_budget", category="Total"))["deleted"] == "Total"
+    assert (
+        "não há orçamento" in (await run(session, user, "delete_budget", category="Total"))["error"]
+    )
+    assert (
+        "maior que zero"
+        in (await run(session, user, "set_budget", category="Lazer", amount="0"))["error"]
+    )

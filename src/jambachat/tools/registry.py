@@ -98,6 +98,10 @@ def simplify_schema(model: type[BaseModel]) -> dict[str, Any]:
             rest = {k: v for k, v in node.items() if k != "anyOf"}
             if len(concrete) == 1:
                 return walk({**concrete[0], **rest})
+            resolved = [_const_to_enum(walk(option)) for option in concrete]
+            if all("enum" in o for o in resolved) and len({o.get("type") for o in resolved}) == 1:
+                merged_enum = [v for o in resolved for v in o["enum"]]
+                return walk({**rest, "type": resolved[0].get("type"), "enum": merged_enum})
             node = {**rest, "anyOf": concrete}
         return {
             k: walk(v)
@@ -107,6 +111,12 @@ def simplify_schema(model: type[BaseModel]) -> dict[str, Any]:
 
     result: dict[str, Any] = walk(schema)
     return result
+
+
+def _const_to_enum(node: dict[str, Any]) -> dict[str, Any]:
+    if "const" not in node:
+        return node
+    return {**{k: v for k, v in node.items() if k != "const"}, "enum": [node["const"]]}
 
 
 def _dump(value: dict[str, Any]) -> str:

@@ -12,9 +12,7 @@ THINK_BLOCK = re.compile(r"<think>.*?(</think>|$)", re.DOTALL | re.IGNORECASE)
 
 
 def strip_reasoning(text: str) -> str:
-    """Remove o raciocínio que modelos como Qwen3 e DeepSeek-R1 escrevem em <think>."""
     cleaned = THINK_BLOCK.sub("", text)
-    # alguns templates já abrem o <think> no prompt e só o fechamento aparece na saída
     if "</think>" in cleaned.lower():
         cleaned = re.split(r"</think>", cleaned, flags=re.IGNORECASE)[-1]
     return cleaned.strip()
@@ -84,8 +82,6 @@ class OpenAICompatibleClient:
         self._timeout = timeout
 
     def _system(self, system: str) -> str:
-        # o Qwen3 raciocina por padrão e gasta o limite de tokens antes de responder;
-        # "/no_think" é a chave documentada para desligar esse modo
         if "qwen3" in self._model.lower():
             return f"{system}\n/no_think"
         return system

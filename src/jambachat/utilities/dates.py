@@ -14,7 +14,6 @@ WEEKDAYS = (
 
 
 def business_days_between(start: date, end: date) -> int:
-    """Dias úteis (seg a sex) no intervalo (start, end], negativo se end < start."""
     sign = 1
     if end < start:
         start, end, sign = end, start, -1

@@ -18,7 +18,6 @@ def _iso(value: datetime | None) -> str | None:
 
 
 async def export_user_data(session: AsyncSession, user: User) -> bytes:
-    """Tudo o que guardamos sobre o usuário, em JSON legível (LGPD, art. 18, V)."""
 
     async def rows(model: Any) -> list[Any]:
         query = select(model).where(model.user_id == user.id).order_by(model.created_at)

@@ -25,7 +25,6 @@ def parse_local_date(value: str) -> date:
 
 
 def local_range(start: date, end: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
-    """Intervalo [início, fim) em UTC cobrindo os dias locais de start a end, inclusive."""
     lower = datetime.combine(start, time.min, tz).astimezone(UTC)
     upper = datetime.combine(end + timedelta(days=1), time.min, tz).astimezone(UTC)
     return lower, upper

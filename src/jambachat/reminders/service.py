@@ -100,7 +100,6 @@ def _reschedule(reminder: Reminder, due_at: datetime) -> Reminder:
 
 
 async def _previous_snooze(session: AsyncSession, user: User, source: Reminder) -> Reminder | None:
-    """Adiamento já criado para o mesmo lembrete, para um segundo toque não duplicar."""
     if source.sent_at is None:
         return None
     sent_at = as_utc(source.sent_at)

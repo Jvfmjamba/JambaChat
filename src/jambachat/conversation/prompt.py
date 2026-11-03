@@ -48,7 +48,6 @@ Como responder:
 
 
 def _inline(value: str | None, limit: int) -> str:
-    """Texto do usuário em uma linha só, sem caracteres de controle, com tamanho limitado."""
     if not value:
         return ""
     printable = "".join(c if c.isprintable() else " " for c in value)

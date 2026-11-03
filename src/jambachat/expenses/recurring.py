@@ -16,19 +16,17 @@ from jambachat.users.models import User
 logger = structlog.get_logger(__name__)
 
 MAX_RULES = 50
-MAX_PER_TICK = 12  # lançamentos atrasados entram aos poucos, no máximo 12 por ciclo
+MAX_PER_TICK = 12
 KIND_MAP = {"gasto": EntryKind.EXPENSE, "receita": EntryKind.INCOME}
 KIND_LABEL = {EntryKind.EXPENSE: "gasto", EntryKind.INCOME: "receita"}
 NOT_FOUND = "recorrência não encontrada; liste as recorrências para obter o id correto"
 
 
 def occurrence(year: int, month: int, day: int) -> date:
-    """Dia do mês ajustado para meses mais curtos (31 vira 30, 29 ou 28)."""
     return date(year, month, min(day, calendar.monthrange(year, month)[1]))
 
 
 def next_occurrence(day: int, after: date) -> date:
-    """Próxima data com o dia `day` estritamente depois de `after`."""
     current = occurrence(after.year, after.month, day)
     if current > after:
         return current
@@ -151,8 +149,6 @@ RECURRING_TOOLS = [
 
 
 class RecurringEntryJob:
-    """Registra os lançamentos recorrentes que venceram, no fuso de cada usuário."""
-
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self._sessionmaker = sessionmaker
 
@@ -172,7 +168,6 @@ class RecurringEntryJob:
             )
             for rule in rules:
                 try:
-                    # savepoint por regra: um problema numa regra não trava as dos outros
                     async with session.begin_nested():
                         created += await self._apply(session, rule, now)
                 except Exception:

@@ -23,7 +23,6 @@ DOCUMENT_TYPES = frozenset(
 
 
 def document_type(mime_type: str) -> str:
-    """Tipos aceitos pelo WhatsApp; CSV, JSON e afins vão como texto puro."""
     return mime_type if mime_type in DOCUMENT_TYPES else "text/plain"
 
 
@@ -232,7 +231,6 @@ class WhatsAppClient:
 
 
 def _is_meta_url(url: str) -> bool:
-    # o token de acesso vai no download, então só aceitamos domínios da Meta
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     return parts.scheme == "https" and (

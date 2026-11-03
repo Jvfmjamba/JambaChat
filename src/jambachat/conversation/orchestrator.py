@@ -47,7 +47,6 @@ class Orchestrator:
     async def run(
         self, history: Sequence[ChatMessage], ctx: ToolContext, *, untrusted_input: bool = False
     ) -> TurnResult:
-        """untrusted_input: a mensagem traz conteúdo de terceiros (ex.: imagem encaminhada)."""
         system = build_system_prompt(ctx.now, ctx.user.timezone, ctx.user.name, ctx.user.home_city)
         specs = self._registry.specs()
         conversation = list(history)

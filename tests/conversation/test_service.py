@@ -353,8 +353,6 @@ async def test_old_tool_results_are_truncated_in_history(sessionmaker: Maker) ->
 
 
 class InterleavingLLM:
-    """Simula a chegada de uma mensagem nova enquanto o modelo ainda responde."""
-
     def __init__(self, service_holder: dict[str, Any], late: InboundMessage) -> None:
         self.holder = service_holder
         self.late = late

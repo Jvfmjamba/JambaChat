@@ -53,8 +53,6 @@ def summary_text(month: date, expense: int, income: int, top: list[tuple[str, in
 
 
 class MonthlySummaryJob:
-    """No dia 1º, manda o resumo do mês anterior para quem está na janela de 24h."""
-
     def __init__(
         self, sessionmaker: async_sessionmaker[AsyncSession], whatsapp: WhatsAppClient
     ) -> None:
@@ -76,7 +74,6 @@ class MonthlySummaryJob:
                 if retry_at is not None and now < retry_at:
                     continue
                 try:
-                    # savepoint por usuário: um erro não desfaz o que já foi enviado aos outros
                     async with session.begin_nested():
                         if await self._maybe_send(session, user, now):
                             sent += 1

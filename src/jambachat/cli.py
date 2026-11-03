@@ -1,11 +1,3 @@
-"""Conversa com o JambaChat pelo terminal, sem WhatsApp.
-
-Usa o mesmo modelo, ferramentas e banco configurados no .env. Útil para testar o
-provedor de IA antes de configurar a Meta:
-
-    uv run python -m jambachat.cli
-"""
-
 import asyncio
 import contextlib
 import sys
@@ -35,8 +27,6 @@ EXIT_WORDS = {"/sair", "/exit", "sair"}
 
 
 class ConsoleWhatsApp(WhatsAppClient):
-    """Imita o cliente do WhatsApp escrevendo as mensagens no terminal."""
-
     def __init__(self, http: httpx.AsyncClient, downloads: Path) -> None:
         super().__init__(http, access_token="", phone_number_id="cli", api_version="cli")
         self._downloads = downloads
@@ -100,8 +90,6 @@ async def run(settings: Settings, name: str | None) -> None:
             create_llm_client(settings, http), build_registry(settings, http)
         )
         service = ConversationService(sessionmaker, whatsapp, orchestrator, settings)
-        # só dispara lembretes num banco local: num banco compartilhado, o terminal
-        # "entregaria" os lembretes de todos os usuários
         local_db = settings.database_url.startswith("sqlite")
         scheduler = ReminderScheduler(
             ReminderDispatcher(sessionmaker, whatsapp, settings),

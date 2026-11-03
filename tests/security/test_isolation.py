@@ -1,9 +1,3 @@
-"""Simula uma IA manipulada (prompt injection) tentando agir sobre dados de outra pessoa.
-
-O ScriptedLLM faz o papel de um modelo que obedeceu ao atacante. Mesmo assim nada
-pode acontecer com a vítima: a identidade vem do remetente autenticado, não da IA.
-"""
-
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any

@@ -16,9 +16,6 @@ logger = structlog.get_logger(__name__)
 
 MAX_TOOL_CALLS_PER_TURN = 10
 
-# Campos que permitiriam à IA escolher *quem* é afetado por uma ferramenta.
-# A identidade vem sempre de ToolContext.user (o remetente autenticado pelo webhook),
-# nunca dos argumentos que a IA preenche. O registro recusa ferramentas que tentem isso.
 IDENTITY_FIELD_HINTS = (
     "user",
     "usuario",
@@ -32,7 +29,6 @@ IDENTITY_FIELD_HINTS = (
     "contact",
     "contato",
 )
-# Palavras curtas e ambíguas só contam como nome inteiro: "to" barra, "to_currency" não.
 IDENTITY_FIELD_EXACT = frozenset({"to", "para", "send_to", "enviar_para", "para_quem"})
 
 
@@ -41,8 +37,6 @@ class ToolError(Exception):
 
 
 class ToolArgs(BaseModel):
-    """Base obrigatória dos argumentos de ferramentas: campos desconhecidos são recusados."""
-
     model_config = ConfigDict(extra="forbid")
 
 
@@ -100,9 +94,7 @@ class Tool:
     description: str
     args_model: type[BaseModel]
     handler: Handler
-    # Devolve conteúdo de terceiros (web) que pode trazer instruções maliciosas.
     reads_untrusted: bool = False
-    # Altera ou apaga dados existentes do usuário.
     destructive: bool = False
 
     def spec(self) -> ToolSpec:
@@ -144,7 +136,6 @@ class ToolRegistry:
             details = exc.errors(include_url=False, include_input=False, include_context=False)
             return dump({"error": "argumentos inválidos", "details": details})
         try:
-            # savepoint: se a ferramenta falhar, só as mudanças dela são desfeitas
             async with ctx.session.begin_nested():
                 result = await tool.handler(ctx, args)
         except ToolError as exc:
@@ -156,12 +147,6 @@ class ToolRegistry:
 
 
 def simplify_schema(model: type[BaseModel]) -> dict[str, Any]:
-    """Gera um JSON Schema sem $ref, títulos, anyOf com null ou additionalProperties.
-
-    Vários provedores compatíveis com OpenAI (Gemini, Ollama, Groq) rejeitam ou
-    entendem mal esses recursos, então o schema é achatado antes de ser enviado.
-    Campos extras continuam sendo recusados na validação (ToolArgs), não no schema.
-    """
     schema = model.model_json_schema()
     defs = schema.pop("$defs", {})
 

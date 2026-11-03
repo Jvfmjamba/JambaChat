@@ -128,7 +128,6 @@ class ConversationService:
         except WhatsAppError as exc:
             log.warning("mark_read_failed", error=str(exc))
 
-        # mensagens do mesmo usuário são respondidas em ordem, uma por vez
         async with self._user_lock(user_id):
             try:
                 reply_to = await self._prepare_reply(user_id, message, log)
@@ -251,7 +250,6 @@ class ConversationService:
             result = await self._orchestrator.run(history, ctx, untrusted_input=bool(images))
         except LLMError as exc:
             log.error("llm_failed", error=str(exc), status_code=exc.status_code)
-            # desfaz o que as ferramentas fizeram: o usuário vai repetir o pedido
             await session.rollback()
             attachments.clear()
             return LLM_DOWN_TEXT
@@ -263,7 +261,6 @@ class ConversationService:
     async def _understand(
         self, session: AsyncSession, message: InboundMessage, log: structlog.stdlib.BoundLogger
     ) -> tuple[str, tuple[Image, ...]]:
-        """Transforma a mensagem recebida em texto (e imagens) para o modelo."""
         if message.kind in {"text", "button", "interactive", "location"} and message.text:
             self._ensure_fits(message.text)
             return message.text, ()
@@ -326,7 +323,6 @@ class ConversationService:
     ) -> bool:
         if message.text and is_command(message.text):
             return False
-        # primeiro contato = ainda não respondemos nada; vale também para rajadas
         answered = await session.scalar(
             select(Message.id)
             .where(Message.user_id == user.id, Message.direction == Direction.OUTBOUND)
@@ -347,7 +343,6 @@ class ConversationService:
     async def _already_answered(
         self, session: AsyncSession, user_id: uuid.UUID, message: InboundMessage
     ) -> bool:
-        """Mensagens que chegaram enquanto outra era respondida já entraram naquele contexto."""
         answered_until = self._answered_until.get(user_id)
         if (
             answered_until is None

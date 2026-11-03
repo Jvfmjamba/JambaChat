@@ -38,7 +38,6 @@ def from_row(row: Message) -> ChatMessage | None:
         text = content.get("text")
         return ChatMessage("user", text) if text and not is_command(text) else None
     if row.role == Role.TOOL:
-        # resultados de turnos anteriores só servem de contexto; corta para poupar tokens
         text = str(content.get("text", ""))
         if len(text) > MAX_OLD_TOOL_RESULT:
             text = text[:MAX_OLD_TOOL_RESULT] + "… [resultado truncado]"
@@ -56,11 +55,6 @@ async def save_turn(
     messages: Sequence[ChatMessage],
     after: datetime | None = None,
 ) -> None:
-    """Grava as mensagens do turno logo depois de `after` (a última mensagem respondida).
-
-    Assim, uma mensagem que chegou enquanto o modelo pensava continua depois da
-    resposta no histórico, e não antes dela.
-    """
     base = as_utc(after) if after is not None else datetime.now(UTC)
     for offset, message in enumerate(messages):
         session.add(

@@ -77,7 +77,6 @@ class ExchangeClient:
         return _parse(base, quote, raw)
 
     async def _frankfurter(self, base: str, quote: str) -> Quote:
-        """Reserva com taxas de referência do BCE (só moedas tradicionais, sem cripto)."""
         data = await request_json(
             self._http,
             "GET",

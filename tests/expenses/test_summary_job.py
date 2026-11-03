@@ -11,7 +11,6 @@ from jambachat.whatsapp.client import WhatsAppClient
 from tests.fakes import GRAPH_MESSAGES_URL, graph_ok, sent_texts
 
 Maker = async_sessionmaker[AsyncSession]
-# 1º de dezembro, 10h em São Paulo
 FIRST = datetime(2026, 12, 1, 13, 0, tzinfo=UTC)
 
 

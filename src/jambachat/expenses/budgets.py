@@ -56,7 +56,6 @@ def _status(budget: Budget, spent: int) -> dict[str, Any]:
 async def budget_alerts(
     session: AsyncSession, user: User, now: datetime, category: str
 ) -> list[dict[str, Any]]:
-    """Situação dos orçamentos afetados por um gasto na categoria, se houver orçamento."""
     budgets = list(
         await session.scalars(
             select(Budget).where(

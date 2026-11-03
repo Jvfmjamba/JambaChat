@@ -83,7 +83,6 @@ async def handle_command(
         case "/limpar":
             user.context_cleared_at = datetime.now(UTC)
             return CLEARED_TEXT
-        # checa ADMIN_PHONES a cada uso: tirar um número da lista revoga na hora
         case "/status" if settings is not None and user.phone in settings.admin_phones:
             return await status_text(session, settings, tools)
         case "/exportar-meus-dados" if attachments is not None:

@@ -22,8 +22,6 @@ class TranscriptionError(Exception):
 
 
 class Transcriber:
-    """Cliente para /audio/transcriptions de APIs compatíveis com OpenAI (Groq, OpenAI, etc.)."""
-
     def __init__(
         self,
         http: httpx.AsyncClient,

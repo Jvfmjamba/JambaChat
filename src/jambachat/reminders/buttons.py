@@ -19,7 +19,6 @@ NOTHING_TO_SNOOZE_TEXT = "Não achei lembrete recente pra adiar."
 
 
 def button_ids(reminder: Reminder) -> list[str]:
-    """Ids dos botões, levando o lembrete junto para adiar exatamente o que foi tocado."""
     return [f"{ID_PREFIX}:{index}:{reminder.id}" for index in range(len(REMINDER_BUTTONS))]
 
 
@@ -37,7 +36,6 @@ async def handle_reminder_button(
     now: datetime,
     reply_id: str | None = None,
 ) -> str | None:
-    """Responde aos botões enviados junto com os lembretes, sem passar pelo modelo."""
     if title == DONE:
         return DONE_TEXT
     minutes = SNOOZE_MINUTES.get(title)

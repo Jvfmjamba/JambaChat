@@ -20,8 +20,6 @@ class _Bucket:
 
 
 class RateLimiter:
-    """Janela deslizante em memória, por usuário. Basta para um único processo."""
-
     def __init__(
         self,
         limits: list[tuple[int, float]],

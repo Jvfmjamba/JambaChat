@@ -74,8 +74,6 @@ class AnthropicClient:
                 {"name": t.name, "description": t.description, "input_schema": t.parameters}
                 for t in tools
             ]
-            # as ferramentas vêm antes do system no prompt e quase nunca mudam;
-            # o system muda a cada minuto por causa do horário atual
             payload["tools"][-1]["cache_control"] = {"type": "ephemeral"}
         headers = {"x-api-key": self._api_key, "anthropic-version": API_VERSION}
         data = await post_json(self._http, self._url, payload, headers, self._timeout)

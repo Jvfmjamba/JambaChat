@@ -126,7 +126,6 @@ async def add_items(ctx: ToolContext, args: AddItemsArgs) -> dict[str, Any]:
             else:
                 skipped.append(text)
             continue
-        # garante ordem de inserção mesmo com relógios de baixa resolução
         created_at = utcnow()
         if current:
             created_at = max(created_at, as_utc(current[-1].created_at) + timedelta(microseconds=1))

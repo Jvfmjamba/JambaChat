@@ -270,7 +270,6 @@ MAX_EXPORT_ROWS = 5000
 
 
 def to_csv(entries: list[Expense], tz: ZoneInfo) -> bytes:
-    """CSV no formato do Excel em português: ponto e vírgula, vírgula decimal e BOM."""
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
     writer.writerow(["Data", "Tipo", "Categoria", "Descrição", "Valor"])
@@ -290,7 +289,6 @@ def to_csv(entries: list[Expense], tz: ZoneInfo) -> bytes:
 
 
 def _safe_cell(value: str) -> str:
-    # evita que planilhas interpretem a descrição como fórmula
     return "'" + value if value[:1] in {"=", "+", "-", "@", "\t", "\r"} else value
 
 

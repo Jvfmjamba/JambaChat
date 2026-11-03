@@ -6,7 +6,6 @@ _CLEAN = re.compile(r"[^\d,.\-]")
 
 
 def parse_amount(value: object) -> int:
-    """Converte valores como 42, 42.5, "42,50" ou "R$ 1.234,56" em centavos."""
     if isinstance(value, bool):
         raise ValueError("valor inválido")
     if isinstance(value, int | float | Decimal):

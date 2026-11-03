@@ -46,8 +46,6 @@ def resolve_timezone(value: str) -> str:
     return zone
 
 
-# Nome e cidade entram no prompt de sistema de toda conversa: só texto simples,
-# para que ninguém grave instruções ali (ex.: via página da web lida pela IA).
 NAME_RE = re.compile(r"^[^\W_][\w .'\-]*$")
 CITY_RE = re.compile(r"^[\w .,'\-()/]*$")
 

@@ -6,12 +6,14 @@ export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 if command -v uv >/dev/null 2>&1; then UV=(uv); else UV=(python -m uv); fi
 [[ "${1:-}" == "--fix" ]] && "${UV[@]}" run ruff format -q . && "${UV[@]}" run ruff check -q --fix .
 
+"${UV[@]}" sync -q --frozen || exit 1
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 run() {
   local name=$1; shift
-  if "${UV[@]}" run "$@" >"$tmp/$name" 2>&1; then echo ok >"$tmp/$name.status"; else echo fail >"$tmp/$name.status"; fi
+  if "${UV[@]}" run --no-sync "$@" >"$tmp/$name" 2>&1; then echo ok >"$tmp/$name.status"; else echo fail >"$tmp/$name.status"; fi
 }
 
 run format ruff format --check -q . &

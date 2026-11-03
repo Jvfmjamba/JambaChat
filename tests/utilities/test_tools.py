@@ -110,13 +110,14 @@ async def test_currency_exchange_errors(registry: ToolRegistry, ctx: ToolContext
     respx.get("https://economia.awesomeapi.com.br/json/last/EUR-BRL").mock(
         side_effect=httpx.ConnectTimeout("timeout")
     )
+    respx.get("https://api.frankfurter.dev/v1/latest").respond(404)
 
     assert (
         "não encontrei"
         in (await run(registry, ctx, "currency_exchange", from_currency="XYZ"))["error"]
     )
     assert (
-        "não respondeu"
+        "indisponível"
         in (await run(registry, ctx, "currency_exchange", from_currency="EUR"))["error"]
     )
     assert (
@@ -227,3 +228,19 @@ async def test_weather_by_coordinates(registry: ToolRegistry, ctx: ToolContext) 
         result = await run(registry, ctx, "weather_forecast", latitude=-8.05, longitude=-34.9)
     assert result["place"] == "localização enviada"
     assert route.calls[0].request.url.params["longitude"] == "-34.9"
+
+
+@respx.mock
+async def test_currency_exchange_falls_back_to_frankfurter(
+    registry: ToolRegistry, ctx: ToolContext
+) -> None:
+    respx.get("https://economia.awesomeapi.com.br/json/last/GBP-BRL").respond(503)
+    fallback = respx.get("https://api.frankfurter.dev/v1/latest").respond(
+        json={"amount": 1.0, "base": "GBP", "date": "2026-11-02", "rates": {"BRL": 7.1}}
+    )
+    result = await run(registry, ctx, "currency_exchange", from_currency="libra", amount=10)
+
+    assert result["rate"] == 7.1
+    assert result["converted_formatted"] == "R$ 71,00"
+    assert "BCE" in result["name"]
+    assert fallback.calls[0].request.url.params["base"] == "GBP"

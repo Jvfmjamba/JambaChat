@@ -5,10 +5,11 @@ from typing import Any
 
 import httpx
 
-from jambachat.tools.http import TTLCache, request_json
+from jambachat.tools.http import ServiceUnavailableError, TTLCache, request_json
 from jambachat.tools.registry import ToolError
 
 AWESOME_URL = "https://economia.awesomeapi.com.br/json/last/{pair}"
+FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
 CURRENCY = re.compile(r"^[A-Z]{3,4}$")
 ALIASES = {
     "REAL": "BRL",
@@ -55,19 +56,51 @@ class ExchangeClient:
         cached = self._cache.get(pair)
         if isinstance(cached, Quote):
             return cached
+        try:
+            result = await self._awesome(base, quote)
+        except ServiceUnavailableError:
+            result = await self._frankfurter(base, quote)
+        self._cache.set(pair, result)
+        return result
+
+    async def _awesome(self, base: str, quote: str) -> Quote:
         data = await request_json(
             self._http,
             "GET",
-            AWESOME_URL.format(pair=pair),
+            AWESOME_URL.format(pair=f"{base}-{quote}"),
             service="cotações",
             not_found_ok=True,
         )
         raw = data.get(f"{base}{quote}") if isinstance(data, dict) else None
         if not isinstance(raw, dict):
             raise ToolError(f"não encontrei cotação para {base}/{quote}")
-        result = _parse(base, quote, raw)
-        self._cache.set(pair, result)
-        return result
+        return _parse(base, quote, raw)
+
+    async def _frankfurter(self, base: str, quote: str) -> Quote:
+        """Reserva com taxas de referência do BCE (só moedas tradicionais, sem cripto)."""
+        data = await request_json(
+            self._http,
+            "GET",
+            FRANKFURTER_URL,
+            service="cotações",
+            params={"base": base, "symbols": quote},
+            not_found_ok=True,
+        )
+        rate = ((data or {}).get("rates") or {}).get(quote) if isinstance(data, dict) else None
+        if not isinstance(rate, int | float):
+            raise ServiceUnavailableError("o serviço de cotações está indisponível agora")
+        day = str(data.get("date", ""))
+        return Quote(
+            base=base,
+            quote=quote,
+            name=f"{base}/{quote} (referência do BCE)",
+            bid=float(rate),
+            ask=float(rate),
+            high=float(rate),
+            low=float(rate),
+            pct_change=0.0,
+            updated_at=day,
+        )
 
 
 def _parse(base: str, quote: str, raw: dict[str, Any]) -> Quote:

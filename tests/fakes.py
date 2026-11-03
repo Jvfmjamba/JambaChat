@@ -23,6 +23,7 @@ def make_settings(**overrides: Any) -> Settings:
         "whatsapp_phone_number_id": "123",
         "allowed_phones": PHONE,
         "llm_base_url": "http://localhost:11434/v1",
+        "send_welcome": False,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)

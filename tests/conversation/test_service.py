@@ -24,6 +24,7 @@ from jambachat.conversation.service import (
     INTERNAL_ERROR_TEXT,
     LLM_DOWN_TEXT,
     UNSUPPORTED_TEXT,
+    WELCOME_TEXT,
     ConversationService,
 )
 from jambachat.db.models import Base
@@ -388,3 +389,25 @@ async def test_user_locks_are_released(sessionmaker: Maker) -> None:
         async with service._user_lock(user_id):
             assert user_id in service._locks
         assert service._locks == {}
+
+
+async def test_welcome_on_first_contact_only(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Oi!"), LLMResponse("De novo."))
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker,
+                whatsapp,
+                Orchestrator(llm, ToolRegistry()),
+                make_settings(send_welcome=True),
+            )
+            for message in (inbound("oi"), inbound("e aí")):
+                user_id = await service.register_inbound(message)
+                assert user_id is not None
+                await service.process(user_id, message)
+
+    assert sent_texts(route) == [WELCOME_TEXT, "Oi!", "De novo."]

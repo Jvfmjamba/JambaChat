@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     allowed_phones: Annotated[frozenset[str], NoDecode] = Field(default_factory=frozenset)
     admin_phones: Annotated[frozenset[str], NoDecode] = Field(default_factory=frozenset)
     default_timezone: str = "America/Sao_Paulo"
+    send_welcome: bool = True
 
     llm_provider: Literal["openai_compatible", "anthropic"] = "openai_compatible"
     llm_base_url: str = ""

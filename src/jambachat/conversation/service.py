@@ -36,6 +36,10 @@ IMAGE_FAILED_TEXT = "Não consegui abrir a imagem. Tenta mandar de novo?"
 MEDIA_TOO_LARGE_TEXT = "Esse arquivo é grande demais pra mim. Consegue mandar um menor?"
 IMAGE_PLACEHOLDER = "(imagem enviada)"
 LLM_DOWN_TEXT = "Tive um problema pra pensar agora. Tenta de novo daqui a pouco?"
+WELCOME_TEXT = (
+    "Oi! Eu sou o *JambaChat* 👋 Anoto gastos, crio lembretes e listas, "
+    "pesquiso e faço contas. Mande /ajuda pra ver exemplos."
+)
 INTERNAL_ERROR_TEXT = "Opa, algo deu errado do meu lado. Tenta de novo daqui a pouco?"
 MB = 1024 * 1024
 
@@ -115,9 +119,10 @@ class ConversationService:
                 return
             if reply_to is None:
                 return
-            phone, reply, attachments = reply_to
+            phone, texts, attachments = reply_to
             try:
-                await self._whatsapp.send_text(phone, reply)
+                for text in texts:
+                    await self._whatsapp.send_text(phone, text)
                 for attachment in attachments:
                     await self._whatsapp.send_document(
                         phone,
@@ -151,7 +156,7 @@ class ConversationService:
 
     async def _prepare_reply(
         self, user_id: uuid.UUID, message: InboundMessage, log: structlog.stdlib.BoundLogger
-    ) -> tuple[str, str, list[Attachment]] | None:
+    ) -> tuple[str, list[str], list[Attachment]] | None:
         async with self._sessionmaker() as session:
             user = await session.get(User, user_id)
             if user is None:
@@ -161,9 +166,13 @@ class ConversationService:
                 return None
             phone = user.phone
             attachments: list[Attachment] = []
+            welcome = self._settings.send_welcome and await self._is_first_contact(
+                session, user, message
+            )
             reply = await self._reply(session, user, message, log, attachments)
+            texts = [WELCOME_TEXT, reply] if welcome else [reply]
             await session.commit()
-        return phone, reply, attachments
+        return phone, texts, attachments
 
     async def _reply(
         self,
@@ -271,6 +280,18 @@ class ConversationService:
         if row is not None:
             row.content = {"text": text, "kind": message.kind}
             await session.flush()
+
+    async def _is_first_contact(
+        self, session: AsyncSession, user: User, message: InboundMessage
+    ) -> bool:
+        if message.text and is_command(message.text):
+            return False
+        count = await session.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.user_id == user.id, Message.direction == Direction.INBOUND)
+        )
+        return count == 1
 
     async def _latest_inbound_at(
         self, session: AsyncSession, user_id: uuid.UUID

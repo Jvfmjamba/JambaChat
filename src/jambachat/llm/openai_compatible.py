@@ -79,13 +79,23 @@ class OpenAICompatibleClient:
         self._max_tokens = max_tokens
         self._timeout = timeout
 
+    def _system(self, system: str) -> str:
+        # o Qwen3 raciocina por padrão e gasta o limite de tokens antes de responder;
+        # "/no_think" é a chave documentada para desligar esse modo
+        if "qwen3" in self._model.lower():
+            return f"{system}\n/no_think"
+        return system
+
     async def complete(
         self, system: str, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
     ) -> LLMResponse:
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "messages": [{"role": "system", "content": system}, *map(_to_wire, messages)],
+            "messages": [
+                {"role": "system", "content": self._system(system)},
+                *map(_to_wire, messages),
+            ],
         }
         if tools:
             payload["tools"] = [

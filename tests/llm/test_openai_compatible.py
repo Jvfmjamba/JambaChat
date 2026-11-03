@@ -37,7 +37,7 @@ async def test_text_reply_without_auth_header() -> None:
     request = route.calls.last.request
     assert "authorization" not in request.headers
     body = json.loads(request.content)
-    assert body["messages"][0] == {"role": "system", "content": "sys"}
+    assert body["messages"][0] == {"role": "system", "content": "sys\n/no_think"}
     assert "tools" not in body
 
 
@@ -115,3 +115,21 @@ async def test_network_failure_raises_llm_error() -> None:
 )
 def test_strip_reasoning(raw: str, clean: str) -> None:
     assert strip_reasoning(raw) == clean
+
+
+@respx.mock
+@pytest.mark.parametrize(("model", "suffix"), [("qwen3:8b", True), ("llama3.1", False)])
+async def test_qwen3_thinking_is_disabled(model: str, suffix: bool) -> None:
+    route = respx.post(URL).mock(return_value=reply({"content": "oi"}))
+    async with httpx.AsyncClient() as http:
+        client = OpenAICompatibleClient(
+            http,
+            base_url=URL.removesuffix("/chat/completions"),
+            api_key="",
+            model=model,
+            max_tokens=10,
+            timeout=5,
+        )
+        await client.complete("sys", [ChatMessage("user", "x")], [])
+    system = json.loads(route.calls[0].request.content)["messages"][0]["content"]
+    assert system.endswith("/no_think") is suffix

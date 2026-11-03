@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -109,9 +111,18 @@ class ReminderDispatcher:
         )
 
 
+class Job(Protocol):
+    async def run_once(self, now: datetime | None = None) -> int: ...
+
+
 class ReminderScheduler:
-    def __init__(self, dispatcher: ReminderDispatcher, interval_seconds: float) -> None:
-        self._dispatcher = dispatcher
+    def __init__(
+        self,
+        dispatcher: ReminderDispatcher,
+        interval_seconds: float,
+        extra_jobs: Sequence[Job] = (),
+    ) -> None:
+        self._jobs: list[Job] = [dispatcher, *extra_jobs]
         self._interval = interval_seconds
         self._task: asyncio.Task[None] | None = None
 
@@ -128,8 +139,9 @@ class ReminderScheduler:
 
     async def _loop(self) -> None:
         while True:
-            try:
-                await self._dispatcher.run_once()
-            except Exception:
-                logger.exception("scheduler_iteration_failed")
+            for job in self._jobs:
+                try:
+                    await job.run_once()
+                except Exception:
+                    logger.exception("scheduler_iteration_failed", job=type(job).__name__)
             await asyncio.sleep(self._interval)

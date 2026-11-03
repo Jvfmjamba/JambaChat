@@ -21,6 +21,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import ConversationService
 from jambachat.db.models import Base
 from jambachat.db.session import get_engine, get_sessionmaker
+from jambachat.expenses.recurring import RecurringEntryJob
 from jambachat.llm.factory import create_llm_client
 from jambachat.logging import configure_logging
 from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
@@ -102,7 +103,11 @@ async def run(settings: Settings, name: str | None) -> None:
         # só dispara lembretes num banco local: num banco compartilhado, o terminal
         # "entregaria" os lembretes de todos os usuários
         local_db = settings.database_url.startswith("sqlite")
-        scheduler = ReminderScheduler(ReminderDispatcher(sessionmaker, whatsapp, settings), 10)
+        scheduler = ReminderScheduler(
+            ReminderDispatcher(sessionmaker, whatsapp, settings),
+            10,
+            [RecurringEntryJob(sessionmaker)],
+        )
         if local_db and settings.scheduler_enabled:
             scheduler.start()
         elif not local_db:

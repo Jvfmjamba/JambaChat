@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
@@ -70,3 +70,21 @@ class Budget(UUIDPrimaryKey, CreatedAt, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     category: Mapped[str] = mapped_column(String(32))
     amount_cents: Mapped[int] = mapped_column(BigInteger)
+
+
+class RecurringEntry(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "recurring_entries"
+    __table_args__ = (
+        Index("ix_recurring_entries_active_next_run_on", "active", "next_run_on"),
+        CheckConstraint("amount_cents > 0", name="amount_positive"),
+        CheckConstraint("day_of_month BETWEEN 1 AND 31", name="valid_day"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[EntryKind] = mapped_column(String(16), default=EntryKind.EXPENSE)
+    amount_cents: Mapped[int] = mapped_column(BigInteger)
+    description: Mapped[str] = mapped_column(EncryptedText)
+    category: Mapped[str] = mapped_column(String(32), default=Category.OUTROS)
+    day_of_month: Mapped[int]
+    next_run_on: Mapped[date]
+    active: Mapped[bool] = mapped_column(default=True)

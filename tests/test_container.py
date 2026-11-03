@@ -16,7 +16,7 @@ async def test_build_container_wires_optional_features() -> None:
     try:
         assert container.scheduler is not None
         assert container.conversation._transcriber is not None
-        assert container.conversation._orchestrator.tool_count == 26
+        assert container.conversation._orchestrator.tool_count == 29
     finally:
         await container.aclose()
 
@@ -26,7 +26,7 @@ async def test_build_container_without_optional_features() -> None:
     try:
         assert container.scheduler is None
         assert container.conversation._transcriber is None
-        assert container.conversation._orchestrator.tool_count == 25
+        assert container.conversation._orchestrator.tool_count == 28
     finally:
         await container.aclose()
 

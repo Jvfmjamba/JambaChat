@@ -1,7 +1,7 @@
 import json
 import os
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -19,6 +19,8 @@ from jambachat.config import get_settings
 from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import ConversationService
 from jambachat.db.models import Base
+from jambachat.expenses.models import RecurringEntry
+from jambachat.expenses.recurring import RecurringEntryJob
 from jambachat.llm.types import LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.scheduler import ReminderDispatcher
@@ -152,4 +154,26 @@ async def test_llm_failure_rolls_back_tool_writes_on_postgres(migrated: None) ->
         user = await session.get(User, user_id)
         assert user is not None
         assert user.name == "Original"
+    await engine.dispose()
+
+
+async def test_recurring_job_on_postgres(migrated: None) -> None:
+    engine = create_async_engine(POSTGRES_URL)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessionmaker() as session:
+        user = User(phone="5514", phone_hash="pg-recurring", timezone="America/Sao_Paulo")
+        session.add(user)
+        await session.flush()
+        session.add(
+            RecurringEntry(
+                user_id=user.id,
+                amount_cents=1000,
+                description="academia",
+                day_of_month=1,
+                next_run_on=date(2026, 1, 1),
+            )
+        )
+        await session.commit()
+
+    assert await RecurringEntryJob(sessionmaker).run_once(datetime(2026, 2, 2, tzinfo=UTC)) == 2
     await engine.dispose()

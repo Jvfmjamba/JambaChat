@@ -13,7 +13,7 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 
 • *Lembretes:* "me lembra de pagar a luz dia 10 às 9h"
 • *Gastos:* "gastei 42 no ifood", "quanto gastei esse mês?"
-• *Orçamento:* "limite de 800 pra mercado", "me manda a planilha"
+• *Orçamento:* "limite de 800 pra mercado", "aluguel de 1500 todo dia 5"
 • *Listas:* "põe leite e pão na lista de compras"
 • *Pesquisa:* "quem ganhou o jogo ontem?"
 • *Utilitários:* câmbio, clima, CEP, contas e datas

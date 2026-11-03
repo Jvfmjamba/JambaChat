@@ -2,6 +2,7 @@ import httpx
 
 from jambachat.config import Settings
 from jambachat.expenses.budgets import BUDGET_TOOLS
+from jambachat.expenses.recurring import RECURRING_TOOLS
 from jambachat.expenses.tools import EXPENSE_TOOLS
 from jambachat.lists.tools import LIST_TOOLS
 from jambachat.reminders.tools import REMINDER_TOOLS
@@ -20,6 +21,7 @@ def build_registry(
         *REMINDER_TOOLS,
         *EXPENSE_TOOLS,
         *BUDGET_TOOLS,
+        *RECURRING_TOOLS,
         *LIST_TOOLS,
         *OFFLINE_TOOLS,
         *PROFILE_TOOLS,

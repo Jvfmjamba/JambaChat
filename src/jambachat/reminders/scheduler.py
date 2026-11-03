@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from jambachat.config import Settings
 from jambachat.conversation.history import save_turn
 from jambachat.llm.types import ChatMessage
-from jambachat.reminders.buttons import REMINDER_BUTTONS
+from jambachat.reminders.buttons import REMINDER_BUTTONS, button_ids
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.recurrence import next_occurrence
 from jambachat.timeutils import as_utc
@@ -68,7 +68,7 @@ class ReminderDispatcher:
             reminder.status = ReminderStatus.CANCELLED
             return
         try:
-            await self._send(user, reminder.text, now)
+            await self._send(user, reminder, now)
         except WhatsAppError as exc:
             reminder.attempts += 1
             if reminder.attempts >= MAX_ATTEMPTS:
@@ -96,10 +96,13 @@ class ReminderDispatcher:
                 )
         log.info("reminder_sent")
 
-    async def _send(self, user: User, text: str, now: datetime) -> None:
+    async def _send(self, user: User, reminder: Reminder, now: datetime) -> None:
+        text = reminder.text
         last_inbound = user.last_inbound_at
         if last_inbound is not None and now - as_utc(last_inbound) < SERVICE_WINDOW:
-            await self._whatsapp.send_buttons(user.phone, reminder_text(text), REMINDER_BUTTONS)
+            await self._whatsapp.send_buttons(
+                user.phone, reminder_text(text), REMINDER_BUTTONS, button_ids(reminder)
+            )
             return
         await self._whatsapp.send_template(
             user.phone, self._settings.whatsapp_reminder_template, [" ".join(text.split())]

@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -7,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.conversation.models import Direction, Message, Role
-from jambachat.llm.types import ChatMessage, ToolCall
+from jambachat.llm.types import ChatMessage, Image, ToolCall
 from jambachat.timeutils import as_utc
 from jambachat.users.models import User
 
@@ -50,9 +51,17 @@ def from_row(row: Message) -> ChatMessage | None:
 
 
 async def save_turn(
-    session: AsyncSession, user_id: uuid.UUID, messages: Sequence[ChatMessage]
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    messages: Sequence[ChatMessage],
+    after: datetime | None = None,
 ) -> None:
-    base = datetime.now(UTC)
+    """Grava as mensagens do turno logo depois de `after` (a última mensagem respondida).
+
+    Assim, uma mensagem que chegou enquanto o modelo pensava continua depois da
+    resposta no histórico, e não antes dela.
+    """
+    base = as_utc(after) if after is not None else datetime.now(UTC)
     for offset, message in enumerate(messages):
         session.add(
             Message(
@@ -65,7 +74,12 @@ async def save_turn(
         )
 
 
-async def load_history(session: AsyncSession, user: User, now: datetime) -> list[ChatMessage]:
+async def load_history(
+    session: AsyncSession,
+    user: User,
+    now: datetime,
+    images: dict[str, tuple[Image, ...]] | None = None,
+) -> list[ChatMessage]:
     since = now.astimezone(UTC) - HISTORY_TTL
     if user.context_cleared_at is not None:
         since = max(since, as_utc(user.context_cleared_at))
@@ -75,7 +89,14 @@ async def load_history(session: AsyncSession, user: User, now: datetime) -> list
         .order_by(Message.created_at.desc())
         .limit(HISTORY_LIMIT)
     )
-    history = [m for m in (from_row(r) for r in reversed(list(rows))) if m is not None]
+    history: list[ChatMessage] = []
+    for row in reversed(list(rows)):
+        message = from_row(row)
+        if message is None:
+            continue
+        if images and row.wa_message_id in images:
+            message = replace(message, images=images[row.wa_message_id])
+        history.append(message)
     while history and history[0].role != "user":
         history.pop(0)
     return history

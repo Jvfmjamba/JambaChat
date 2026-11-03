@@ -133,3 +133,7 @@ async def test_qwen3_thinking_is_disabled(model: str, suffix: bool) -> None:
         await client.complete("sys", [ChatMessage("user", "x")], [])
     system = json.loads(route.calls[0].request.content)["messages"][0]["content"]
     assert system.endswith("/no_think") is suffix
+
+
+def test_strip_reasoning_without_opening_tag() -> None:
+    assert strip_reasoning("Vou pensar...\n</think>\n\nResposta final") == "Resposta final"

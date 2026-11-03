@@ -13,7 +13,11 @@ THINK_BLOCK = re.compile(r"<think>.*?(</think>|$)", re.DOTALL | re.IGNORECASE)
 
 def strip_reasoning(text: str) -> str:
     """Remove o raciocínio que modelos como Qwen3 e DeepSeek-R1 escrevem em <think>."""
-    return THINK_BLOCK.sub("", text).strip()
+    cleaned = THINK_BLOCK.sub("", text)
+    # alguns templates já abrem o <think> no prompt e só o fechamento aparece na saída
+    if "</think>" in cleaned.lower():
+        cleaned = re.split(r"</think>", cleaned, flags=re.IGNORECASE)[-1]
+    return cleaned.strip()
 
 
 def _to_wire(message: ChatMessage) -> dict[str, Any]:

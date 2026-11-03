@@ -44,7 +44,9 @@ class ConsoleWhatsApp(WhatsAppClient):
         print(f"\njamba> {text}\n")
         return [str(uuid.uuid4())]
 
-    async def send_buttons(self, to: str, text: str, buttons: Sequence[str]) -> str:
+    async def send_buttons(
+        self, to: str, text: str, buttons: Sequence[str], ids: Sequence[str] | None = None
+    ) -> str:
         options = "  ".join(f"[{b}]" for b in buttons)
         print(f"\njamba> {text}\n       {options}\n")
         return str(uuid.uuid4())
@@ -97,8 +99,14 @@ async def run(settings: Settings, name: str | None) -> None:
             create_llm_client(settings, http), build_registry(settings, http)
         )
         service = ConversationService(sessionmaker, whatsapp, orchestrator, settings)
+        # só dispara lembretes num banco local: num banco compartilhado, o terminal
+        # "entregaria" os lembretes de todos os usuários
+        local_db = settings.database_url.startswith("sqlite")
         scheduler = ReminderScheduler(ReminderDispatcher(sessionmaker, whatsapp, settings), 10)
-        scheduler.start()
+        if local_db and settings.scheduler_enabled:
+            scheduler.start()
+        elif not local_db:
+            print("Banco compartilhado: lembretes não serão disparados pelo terminal.")
         print("JambaChat no terminal. Escreva /sair para encerrar.\n")
         try:
             while True:

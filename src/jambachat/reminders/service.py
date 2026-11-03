@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.reminders.models import Reminder, ReminderStatus
+from jambachat.timeutils import as_utc
 from jambachat.users.models import User
 
 
@@ -67,8 +68,31 @@ async def snooze_reminder(
         raise ReminderNotFoundError
     due_at = now + timedelta(minutes=minutes)
     if source.status == ReminderStatus.PENDING and source.recurrence is None:
-        source.due_at = due_at
-        source.attempts = 0
-        source.next_attempt_at = None
-        return source
+        return _reschedule(source, due_at)
+    previous = await _previous_snooze(session, user, source)
+    if previous is not None:
+        return _reschedule(previous, due_at)
     return await create_reminder(session, user, source.text, due_at, None)
+
+
+def _reschedule(reminder: Reminder, due_at: datetime) -> Reminder:
+    reminder.due_at = due_at
+    reminder.attempts = 0
+    reminder.next_attempt_at = None
+    return reminder
+
+
+async def _previous_snooze(session: AsyncSession, user: User, source: Reminder) -> Reminder | None:
+    """Adiamento já criado para o mesmo lembrete, para um segundo toque não duplicar."""
+    if source.sent_at is None:
+        return None
+    sent_at = as_utc(source.sent_at)
+    for candidate in await list_pending(session, user):
+        if (
+            candidate.id != source.id
+            and candidate.recurrence is None
+            and candidate.text == source.text
+            and as_utc(candidate.created_at) >= sent_at
+        ):
+            return candidate
+    return None

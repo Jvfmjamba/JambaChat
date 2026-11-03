@@ -277,3 +277,39 @@ def test_images_on_the_wire() -> None:
         "data": "cG5n",
     }
     assert json.dumps(anthropic)
+
+
+@respx.mock
+async def test_image_is_attached_to_its_own_message(sessionmaker: Maker) -> None:
+    mock_media(b"jpeg", mime="image/jpeg")
+    llm = ScriptedLLM(LLMResponse("Vi a foto."))
+    photo = media_message("image", caption="nota")
+    later_text = InboundMessage(
+        wa_message_id="wamid.text-after-photo",
+        phone="5511999990000",
+        name="João",
+        kind="text",
+        text="registra isso",
+        timestamp=datetime.now(UTC),
+    )
+    route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+    async with httpx.AsyncClient() as http:
+        whatsapp = WhatsAppClient(
+            http, access_token="t", phone_number_id="123", api_version="v23.0"
+        )
+        service = ConversationService(
+            sessionmaker,
+            whatsapp,
+            Orchestrator(llm, ToolRegistry()),
+            make_settings(llm_vision=True),
+        )
+        user_id = await service.register_inbound(photo)
+        await service.register_inbound(later_text)
+        assert user_id is not None
+        await service.process(user_id, photo)
+
+    assert sent_texts(route) == ["Vi a foto."]
+    photo_message, text_message = llm.calls[0][1]
+    assert photo_message.content == "nota"
+    assert photo_message.images == (Image("image/jpeg", b"jpeg"),)
+    assert text_message.images == ()

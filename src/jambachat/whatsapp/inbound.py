@@ -16,6 +16,7 @@ class InboundMessage:
     timestamp: datetime
     media_id: str | None = None
     media_mime: str | None = None
+    reply_id: str | None = None
 
     @property
     def has_media(self) -> bool:
@@ -48,6 +49,18 @@ def _location_text(location: dict[str, Any]) -> str | None:
     label = ", ".join(str(location[k]) for k in ("name", "address") if location.get(k))
     place = f"{label} " if label else ""
     return f"[localização enviada] {place}(latitude {lat:.5f}, longitude {lon:.5f})"
+
+
+def _reply_id_of(message: dict[str, Any], kind: str) -> str | None:
+    if kind == "button":
+        payload = (message.get("button") or {}).get("payload")
+        return str(payload) if payload else None
+    if kind == "interactive":
+        interactive = message.get("interactive") or {}
+        reply = interactive.get("button_reply") or interactive.get("list_reply") or {}
+        reply_id = reply.get("id")
+        return str(reply_id) if reply_id else None
+    return None
 
 
 def _media_of(message: dict[str, Any], kind: str) -> tuple[str | None, str | None]:
@@ -86,6 +99,7 @@ def parse_webhook(payload: Any) -> list[InboundMessage]:
                             timestamp=datetime.fromtimestamp(int(raw["timestamp"]), UTC),
                             media_id=media_id,
                             media_mime=media_mime,
+                            reply_id=_reply_id_of(raw, kind),
                         )
                     )
                 except (KeyError, TypeError, ValueError, AttributeError):

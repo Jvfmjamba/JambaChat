@@ -1,7 +1,6 @@
 import asyncio
 import uuid
 from collections import defaultdict
-from dataclasses import replace
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -167,16 +166,18 @@ class ConversationService:
                 return command_reply
 
         now = datetime.now(ZoneInfo(user.timezone))
+        latest = await self._latest_inbound_at(session, user.id)
         if message.kind in {"interactive", "button"}:
-            button_reply = await handle_reminder_button(session, user, text, now)
+            button_reply = await handle_reminder_button(session, user, text, now, message.reply_id)
             if button_reply is not None:
-                await save_turn(session, user.id, [ChatMessage("assistant", button_reply)])
+                await save_turn(
+                    session, user.id, [ChatMessage("assistant", button_reply)], after=latest
+                )
                 return button_reply
 
-        latest = await self._latest_inbound_at(session, user.id)
-        history = await load_history(session, user, now)
-        if images:
-            history = _attach_images(history, images)
+        history = await load_history(
+            session, user, now, {message.wa_message_id: images} if images else None
+        )
         ctx = ToolContext(
             session=session,
             user=user,
@@ -188,8 +189,11 @@ class ConversationService:
             result = await self._orchestrator.run(history, ctx)
         except LLMError as exc:
             log.error("llm_failed", error=str(exc), status_code=exc.status_code)
+            # desfaz o que as ferramentas fizeram: o usuário vai repetir o pedido
+            await session.rollback()
+            attachments.clear()
             return LLM_DOWN_TEXT
-        await save_turn(session, user.id, result.messages)
+        await save_turn(session, user.id, result.messages, after=latest)
         if latest is not None:
             self._answered_until[user.id] = latest
         return result.reply
@@ -266,6 +270,7 @@ class ConversationService:
         if (
             answered_until is None
             or message.has_media
+            or message.kind in {"interactive", "button"}
             or not message.text
             or is_command(message.text)
         ):
@@ -274,11 +279,3 @@ class ConversationService:
             select(Message.created_at).where(Message.wa_message_id == message.wa_message_id)
         )
         return received_at is not None and as_utc(received_at) <= as_utc(answered_until)
-
-
-def _attach_images(history: list[ChatMessage], images: tuple[Image, ...]) -> list[ChatMessage]:
-    for index in range(len(history) - 1, -1, -1):
-        if history[index].role == "user":
-            history[index] = replace(history[index], images=images)
-            break
-    return history

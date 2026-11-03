@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from jambachat.llm.types import ToolCall
+from jambachat.reminders.buttons import button_ids, handle_reminder_button
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.tools.catalog import build_registry
 from jambachat.tools.registry import ToolContext
@@ -157,3 +158,33 @@ async def test_update_reminder(session: AsyncSession) -> None:
     await run(session, user, "cancel_reminder", reminder_id=reminder_id)
     gone = await run(session, user, "update_reminder", reminder_id=reminder_id, text="x")
     assert "não encontrado" in gone["error"]
+
+
+async def test_buttons_snooze_the_tapped_reminder_once(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    now = datetime.now(UTC)
+    older = Reminder(
+        user_id=user.id,
+        text="remédio",
+        due_at=NOW,
+        status=ReminderStatus.SENT,
+        sent_at=now - timedelta(minutes=5),
+    )
+    newer = Reminder(
+        user_id=user.id,
+        text="reunião",
+        due_at=NOW,
+        status=ReminderStatus.SENT,
+        sent_at=now,
+    )
+    session.add_all([older, newer])
+    await session.flush()
+    snooze_id = button_ids(older)[0]
+
+    for _ in range(2):
+        reply = await handle_reminder_button(session, user, "Adiar 10 min", now, snooze_id)
+        assert reply is not None and reply.startswith("Beleza")
+
+    listed = await run(session, user, "list_reminders")
+    assert [r["text"] for r in listed["reminders"]] == ["remédio"]
+    assert await handle_reminder_button(session, user, "outra coisa", now) is None

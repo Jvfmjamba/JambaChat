@@ -1,11 +1,14 @@
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 import httpx
 import respx
 from pydantic import BaseModel
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from jambachat.conversation.commands import (
     CLEARED_TEXT,
@@ -22,6 +25,8 @@ from jambachat.conversation.service import (
     UNSUPPORTED_TEXT,
     ConversationService,
 )
+from jambachat.db.models import Base
+from jambachat.db.session import tune_sqlite
 from jambachat.llm.types import ChatMessage, LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolRegistry
@@ -31,6 +36,12 @@ from jambachat.whatsapp.inbound import InboundMessage
 from tests.fakes import GRAPH_MESSAGES_URL, ScriptedLLM, graph_ok, make_settings, sent_texts
 
 Maker = async_sessionmaker[AsyncSession]
+
+
+class NoArgs(BaseModel):
+    pass
+
+
 counter = iter(range(10_000))
 
 
@@ -187,9 +198,6 @@ async def test_unexpected_error_still_answers(sessionmaker: Maker) -> None:
 
 
 async def test_attachments_are_sent_after_the_reply(sessionmaker: Maker) -> None:
-    class NoArgs(BaseModel):
-        pass
-
     async def attach(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
         ctx.attachments.append(Attachment("a.csv", "text/csv", b"x;y", "planilha"))
         return {"ok": True}
@@ -289,3 +297,81 @@ async def test_old_tool_results_are_truncated_in_history(sessionmaker: Maker) ->
     tool = next(m for m in history if m.role == "tool")
     assert len(tool.content) < MAX_OLD_TOOL_RESULT + 30
     assert tool.content.endswith("[resultado truncado]")
+
+
+class InterleavingLLM:
+    """Simula a chegada de uma mensagem nova enquanto o modelo ainda responde."""
+
+    def __init__(self, service_holder: dict[str, Any], late: InboundMessage) -> None:
+        self.holder = service_holder
+        self.late = late
+        self.calls: list[list[ChatMessage]] = []
+
+    async def complete(
+        self, system: str, messages: Sequence[ChatMessage], tools: Sequence[Any]
+    ) -> LLMResponse:
+        self.calls.append(list(messages))
+        if len(self.calls) == 1:
+            self.holder["late_user"] = await self.holder["service"].register_inbound(self.late)
+            return LLMResponse("Resposta da primeira.")
+        return LLMResponse("Resposta da segunda.")
+
+
+async def test_message_arriving_mid_reply_is_answered_after_it(tmp_path: Path) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
+    tune_sqlite(engine)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    first, late = inbound("primeira"), inbound("segunda")
+    holder: dict[str, Any] = {}
+    llm = InterleavingLLM(holder, late)
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker, whatsapp, Orchestrator(llm, ToolRegistry()), make_settings()
+            )
+            holder["service"] = service
+            user_id = await service.register_inbound(first)
+            assert user_id is not None
+            await service.process(user_id, first)
+            await service.process(holder["late_user"], late)
+
+    assert sent_texts(route) == ["Resposta da primeira.", "Resposta da segunda."]
+    assert [(m.role, m.content) for m in llm.calls[1]] == [
+        ("user", "primeira"),
+        ("assistant", "Resposta da primeira."),
+        ("user", "segunda"),
+    ]
+    await engine.dispose()
+
+
+async def test_llm_failure_drops_attachments(sessionmaker: Maker) -> None:
+    async def remember(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
+        ctx.user.name = "mudou"
+        ctx.attachments.append(Attachment("a.csv", "text/csv", b"x"))
+        return {"ok": True}
+
+    llm = ScriptedLLM(LLMResponse("", (ToolCall("c1", "remember", {}),)), LLMError("caiu"))
+    registry = ToolRegistry([Tool("remember", "muda", NoArgs, remember)])
+    with respx.mock:
+        route = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker, whatsapp, Orchestrator(llm, registry), make_settings()
+            )
+            message = inbound("faz algo")
+            user_id = await service.register_inbound(message)
+            assert user_id is not None
+            await service.process(user_id, message)
+
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert [b["type"] for b in bodies if "type" in b] == ["text"]
+    assert sent_texts(route) == [LLM_DOWN_TEXT]

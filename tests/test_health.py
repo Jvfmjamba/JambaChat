@@ -1,4 +1,8 @@
+import asyncio
+from typing import cast
+
 import httpx
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -34,6 +38,29 @@ async def test_ready_checks_the_database(
             assert (await client.get("/health/ready")).json() == {"status": "ok"}
 
         broken = async_sessionmaker(create_async_engine("sqlite+aiosqlite:////nao/existe/x.db"))
+        app = create_app(Container(settings, broken, conversation))
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/health/ready")
+    assert response.status_code == 503
+
+
+async def test_ready_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SlowSession:
+        async def __aenter__(self) -> "SlowSession":
+            await asyncio.sleep(10)
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr("jambachat.api.health.READY_TIMEOUT_SECONDS", 0.05)
+    settings = make_settings()
+    async with httpx.AsyncClient() as http:
+        whatsapp = WhatsAppClient(http, access_token="t", phone_number_id="1", api_version="v23.0")
+        broken = cast(async_sessionmaker[AsyncSession], SlowSession)
+        conversation = ConversationService(
+            broken, whatsapp, Orchestrator(ScriptedLLM(), ToolRegistry()), settings
+        )
         app = create_app(Container(settings, broken, conversation))
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health/ready")

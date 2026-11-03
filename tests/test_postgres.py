@@ -11,19 +11,23 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from jambachat.config import get_settings
+from jambachat.conversation.orchestrator import Orchestrator
+from jambachat.conversation.service import ConversationService
 from jambachat.db.models import Base
-from jambachat.llm.types import ToolCall
+from jambachat.llm.types import LLMError, LLMResponse, ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.scheduler import ReminderDispatcher
 from jambachat.tools.catalog import build_registry
-from jambachat.tools.registry import ToolContext
+from jambachat.tools.registry import Tool, ToolContext, ToolRegistry
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
-from tests.fakes import GRAPH_MESSAGES_URL, graph_ok, make_settings
+from jambachat.whatsapp.inbound import InboundMessage
+from tests.fakes import GRAPH_MESSAGES_URL, ScriptedLLM, graph_ok, make_settings
 from tests.test_migrations import ROOT
 
 POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL", "")
@@ -109,3 +113,43 @@ async def test_finance_tools_on_postgres(migrated: None) -> None:
 
     assert added["budgets"][0]["exceeded_by"] == "R$ 20,50"  # type: ignore[index]
     assert summary["expenses"] == "R$ 120,50"
+
+
+async def test_llm_failure_rolls_back_tool_writes_on_postgres(migrated: None) -> None:
+    engine = create_async_engine(POSTGRES_URL)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+    class NoArgs(BaseModel):
+        pass
+
+    async def rename(ctx: ToolContext, args: NoArgs) -> dict[str, object]:
+        ctx.user.name = "mudou"
+        await ctx.session.flush()
+        return {"ok": True}
+
+    llm = ScriptedLLM(LLMResponse("", (ToolCall("c1", "rename", {}),)), LLMError("caiu"))
+    registry = ToolRegistry([Tool("rename", "muda", NoArgs, rename)])
+    message = InboundMessage(
+        "wamid.pg-rollback", "5513", "Original", "text", "oi", datetime.now(UTC)
+    )
+    with respx.mock:
+        respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker,
+                whatsapp,
+                Orchestrator(llm, registry),
+                make_settings(allowed_phones="5513"),
+            )
+            user_id = await service.register_inbound(message)
+            assert user_id is not None
+            await service.process(user_id, message)
+
+    async with sessionmaker() as session:
+        user = await session.get(User, user_id)
+        assert user is not None
+        assert user.name == "Original"
+    await engine.dispose()

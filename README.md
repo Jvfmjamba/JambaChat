@@ -4,7 +4,7 @@ Assistente pessoal no WhatsApp para lembretes, controle de gastos, pesquisas rá
 
 ## Status
 
-Em desenvolvimento. Conversa, lembretes, gastos, listas, pesquisa e utilitários prontos; próximos passos: integração com bancos (Open Finance) e com a Carteira do iPhone.
+Em desenvolvimento. Conversa, lembretes, gastos, listas, pesquisa e utilitários prontos; próximo passo: integração com bancos (Open Finance).
 
 ## O que ele faz
 
@@ -16,11 +16,12 @@ Em desenvolvimento. Conversa, lembretes, gastos, listas, pesquisa e utilitários
 | Pesquisa | "quem ganhou o jogo ontem?", "que horas abre o Detran?", "quem foi Santos Dumont?" |
 | Utilitários | câmbio ("100 dólares em reais"), clima, CEP, calculadora, contas com datas |
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
+| Compras do iPhone | pagou com a Carteira, o gasto entra sozinho via app Atalhos ([guia](docs/atalhos.md)) |
 | Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
 
 No dia 1º, quem conversou com o assistente nas últimas 24 horas recebe o resumo financeiro do mês anterior (desligue com `MONTHLY_SUMMARY=false`).
 
-Comandos: `/ajuda`, `/limpar`, `/exportar-meus-dados` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
+Comandos: `/ajuda`, `/limpar`, `/atalho`, `/exportar-meus-dados` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
 
 ## Requisitos
 

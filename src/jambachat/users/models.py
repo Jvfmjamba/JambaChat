@@ -18,3 +18,4 @@ class User(UUIDPrimaryKey, CreatedAt, Base):
     is_admin: Mapped[bool] = mapped_column(default=False)
     last_inbound_at: Mapped[datetime | None]
     context_cleared_at: Mapped[datetime | None]
+    last_summary_month: Mapped[str | None] = mapped_column(String(7))

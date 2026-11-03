@@ -9,6 +9,7 @@ from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import ConversationService
 from jambachat.db.session import get_engine, get_sessionmaker
 from jambachat.expenses.recurring import RecurringEntryJob
+from jambachat.expenses.summary_job import MonthlySummaryJob
 from jambachat.llm.factory import create_llm_client
 from jambachat.media.transcriber import Transcriber
 from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
@@ -51,7 +52,10 @@ def build_container(settings: Settings) -> Container:
         ReminderScheduler(
             ReminderDispatcher(sessionmaker, whatsapp, settings),
             settings.scheduler_interval_seconds,
-            [RecurringEntryJob(sessionmaker)],
+            [
+                RecurringEntryJob(sessionmaker),
+                *([MonthlySummaryJob(sessionmaker, whatsapp)] if settings.monthly_summary else []),
+            ],
         )
         if settings.scheduler_enabled
         else None

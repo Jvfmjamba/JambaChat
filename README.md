@@ -18,6 +18,8 @@ Em desenvolvimento. Marco atual: M1 — Conversa.
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
 | Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
 
+No dia 1º, quem conversou com o assistente nas últimas 24 horas recebe o resumo financeiro do mês anterior (desligue com `MONTHLY_SUMMARY=false`).
+
 Comandos: `/ajuda`, `/limpar`, `/exportar-meus-dados` e `/apagar-meus-dados`; administradores (`ADMIN_PHONES`) também têm `/status`.
 
 ## Requisitos

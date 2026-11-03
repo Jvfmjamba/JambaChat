@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     tavily_api_key: SecretStr = SecretStr("")
 
+    monthly_summary: bool = True
+
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 30
 

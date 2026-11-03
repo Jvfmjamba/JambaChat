@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from jambachat.whatsapp.client import WhatsAppClient, WhatsAppError, split_text
+from jambachat.whatsapp.client import WhatsAppClient, WhatsAppError, document_type, split_text
 from tests.fakes import GRAPH_MESSAGES_URL, graph_ok
 
 
@@ -61,3 +61,9 @@ async def test_errors_raise_whatsapp_error(response: httpx.Response) -> None:
     async with httpx.AsyncClient() as http:
         with pytest.raises(WhatsAppError):
             await make_client(http).send_text("5511", "oi")
+
+
+def test_document_type_falls_back_to_plain_text() -> None:
+    assert document_type("application/pdf") == "application/pdf"
+    assert document_type("text/csv") == "text/plain"
+    assert document_type("application/json") == "text/plain"

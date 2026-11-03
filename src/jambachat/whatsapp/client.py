@@ -8,6 +8,23 @@ import httpx
 GRAPH_URL = "https://graph.facebook.com"
 MAX_TEXT_LENGTH = 4096
 MEDIA_HOSTS = ("fbsbx.com", "facebook.com", "whatsapp.net", "fbcdn.net")
+DOCUMENT_TYPES = frozenset(
+    {
+        "text/plain",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+)
+
+
+def document_type(mime_type: str) -> str:
+    """Tipos aceitos pelo WhatsApp; CSV, JSON e afins vão como texto puro."""
+    return mime_type if mime_type in DOCUMENT_TYPES else "text/plain"
 
 
 class WhatsAppError(Exception):
@@ -142,7 +159,7 @@ class WhatsAppClient:
     async def send_document(
         self, to: str, content: bytes, mime_type: str, filename: str, caption: str = ""
     ) -> str:
-        media_id = await self.upload_media(content, mime_type, filename)
+        media_id = await self.upload_media(content, document_type(mime_type), filename)
         document: dict[str, Any] = {"id": media_id, "filename": filename}
         if caption:
             document["caption"] = caption

@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jambachat import __version__
 from jambachat.config import Settings
 from jambachat.reminders.models import Reminder, ReminderStatus
+from jambachat.tools.registry import Attachment
+from jambachat.users.export import export_user_data
 from jambachat.users.models import User
 from jambachat.users.repository import delete_user_data
 
@@ -23,6 +25,7 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 *Comandos*
 /ajuda — esta mensagem
 /limpar — esqueço o assunto atual
+/exportar-meus-dados — mando um arquivo com tudo que tenho sobre você
 /apagar-meus-dados — apago tudo que tenho sobre você"""
 
 CLEARED_TEXT = "Pronto, esqueci o assunto. Pode começar do zero."
@@ -31,6 +34,7 @@ DELETE_CONFIRM_TEXT = (
     "Se tiver certeza, mande: /apagar-meus-dados confirmar"
 )
 DELETED_TEXT = "Seus dados foram apagados. Se mandar outra mensagem, começo do zero."
+EXPORTED_TEXT = "Aqui está tudo que eu guardo sobre você."
 UNKNOWN_TEXT = "Não conheço esse comando. Mande /ajuda pra ver o que eu faço."
 
 
@@ -68,6 +72,7 @@ async def handle_command(
     text: str,
     settings: Settings | None = None,
     tools: int = 0,
+    attachments: list[Attachment] | None = None,
 ) -> str | None:
     if not text.startswith("/"):
         return None
@@ -80,6 +85,10 @@ async def handle_command(
             return CLEARED_TEXT
         case "/status" if user.is_admin and settings is not None:
             return await status_text(session, settings, tools)
+        case "/exportar-meus-dados" if attachments is not None:
+            content = await export_user_data(session, user)
+            attachments.append(Attachment("jambachat-meus-dados.json", "application/json", content))
+            return EXPORTED_TEXT
         case "/apagar-meus-dados":
             if argument.strip() != "confirmar":
                 return DELETE_CONFIRM_TEXT

@@ -15,6 +15,7 @@ from jambachat.conversation.commands import (
     CLEARED_TEXT,
     DELETE_CONFIRM_TEXT,
     DELETED_TEXT,
+    EXPORTED_TEXT,
     HELP_TEXT,
 )
 from jambachat.conversation.history import MAX_OLD_TOOL_RESULT, load_history, save_turn
@@ -438,3 +439,29 @@ async def test_welcome_survives_bursts_and_skips_failures(sessionmaker: Maker) -
             await service.process(user_id, burst)
 
     assert sent_texts(route) == [LLM_DOWN_TEXT, WELCOME_TEXT, "Agora sim."]
+
+
+async def test_export_my_data_sends_json(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Oi!"))
+    with respx.mock:
+        messages = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        upload = respx.post("https://graph.facebook.com/v23.0/123/media").respond(
+            json={"id": "media-9"}
+        )
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            service = ConversationService(
+                sessionmaker, whatsapp, Orchestrator(llm, ToolRegistry()), make_settings()
+            )
+            for message in (inbound("oi"), inbound("/exportar-meus-dados")):
+                user_id = await service.register_inbound(message)
+                assert user_id is not None
+                await service.process(user_id, message)
+
+    assert sent_texts(messages)[-1] == EXPORTED_TEXT
+    body = upload.calls[0].request.content
+    payload = json.loads(body[body.index(b"{") : body.rindex(b"}") + 1])
+    assert payload["profile"]["phone"] == "5511999990000"
+    assert [m["text"] for m in payload["messages"]] == ["oi", "Oi!", "/exportar-meus-dados"]

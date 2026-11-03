@@ -190,7 +190,7 @@ class ConversationService:
 
         if not message.has_media:
             command_reply = await handle_command(
-                session, user, text, self._settings, self._orchestrator.tool_count
+                session, user, text, self._settings, self._orchestrator.tool_count, attachments
             )
             if command_reply is not None:
                 return command_reply

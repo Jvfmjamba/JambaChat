@@ -1,6 +1,6 @@
 [project]
 name = "jambachat"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "Assistente pessoal no WhatsApp para lembretes, gastos, pesquisas e utilitarios"
 readme = "README.md"
 requires-python = ">=3.12"

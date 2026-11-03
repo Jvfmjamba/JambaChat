@@ -4,7 +4,7 @@ Assistente pessoal no WhatsApp para lembretes, controle de gastos, pesquisas rá
 
 ## Status
 
-Em desenvolvimento. Marco atual: M1 — Conversa.
+Release candidate. Marco atual: M2 — Lembretes.
 
 ## Requisitos
 

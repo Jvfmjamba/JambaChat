@@ -34,7 +34,15 @@ def test_upgrade_creates_all_tables_and_matches_models(alembic_config: Config) -
         diff = compare_metadata(MigrationContext.configure(connection), Base.metadata)
     engine.dispose()
 
-    assert {"users", "messages", "reminders", "expenses"} <= tables
+    assert {
+        "users",
+        "messages",
+        "reminders",
+        "expenses",
+        "finance_connections",
+        "expense_links",
+        "finance_suppressions",
+    } <= tables
     assert diff == []
 
 

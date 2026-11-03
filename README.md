@@ -78,6 +78,8 @@ uv run alembic upgrade head
 uv run uvicorn jambachat.main:app --reload
 ```
 
+Rode um único processo do servidor (o padrão do uvicorn e da imagem Docker): a fila que responde as mensagens de cada pessoa em ordem fica em memória. Em produção use Postgres; o SQLite serve para desenvolvimento e para o modo terminal.
+
 Para conversar pelo terminal, sem WhatsApp (bom para testar o provedor de IA antes de configurar a Meta):
 
 ```bash

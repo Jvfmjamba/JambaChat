@@ -24,6 +24,22 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jambachat
+          POSTGRES_PASSWORD: jambachat
+          POSTGRES_DB: jambachat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jambachat"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_URL: postgresql+asyncpg://jambachat:jambachat@localhost:5432/jambachat
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

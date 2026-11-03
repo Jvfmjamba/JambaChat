@@ -8,14 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.conversation.models import Direction, Message, Role
 from jambachat.llm.types import ChatMessage, ToolCall
+from jambachat.timeutils import as_utc
 from jambachat.users.models import User
 
 HISTORY_LIMIT = 20
 HISTORY_TTL = timedelta(hours=6)
-
-
-def as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def to_content(message: ChatMessage) -> dict[str, Any]:

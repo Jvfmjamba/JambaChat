@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.162.0",
     "httpx>=0.28.1",
     "pydantic-settings>=2.16.2",
+    "python-dateutil>=4.0.0",
     "sqlalchemy[asyncio]>=2.1.6",
     "structlog>=26.1.0",
     "tzdata>=2026.6",
@@ -63,4 +64,5 @@ dev = [
     "pytest-xdist>=3.8.0",
     "respx>=0.23.1",
     "ruff>=0.17.3",
+    "types-python-dateutil>=2.9.0.20261029",
 ]

@@ -4,7 +4,7 @@ Assistente pessoal no WhatsApp para lembretes, controle de gastos, pesquisas rá
 
 ## Status
 
-Em desenvolvimento. Marco atual: M1 — Conversa.
+Em desenvolvimento. Conversa, lembretes, gastos, listas, pesquisa e utilitários prontos; próximos passos: integração com bancos (Open Finance) e com a Carteira do iPhone.
 
 ## O que ele faz
 

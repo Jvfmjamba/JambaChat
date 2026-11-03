@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from jambachat.llm.openai_compatible import OpenAICompatibleClient
+from jambachat.llm.openai_compatible import OpenAICompatibleClient, strip_reasoning
 from jambachat.llm.types import ChatMessage, LLMError, ToolCall, ToolSpec
 
 URL = "http://localhost:11434/v1/chat/completions"
@@ -102,3 +102,16 @@ async def test_network_failure_raises_llm_error() -> None:
     async with httpx.AsyncClient() as http:
         with pytest.raises(LLMError):
             await make_client(http).complete("sys", [ChatMessage("user", "x")], [])
+
+
+@pytest.mark.parametrize(
+    ("raw", "clean"),
+    [
+        ("<think>hmm, vejamos</think>\n\nOi!", "Oi!"),
+        ("<THINK>a\nb</THINK>Resposta", "Resposta"),
+        ("<think>sem fim", ""),
+        ("Sem raciocínio", "Sem raciocínio"),
+    ],
+)
+def test_strip_reasoning(raw: str, clean: str) -> None:
+    assert strip_reasoning(raw) == clean

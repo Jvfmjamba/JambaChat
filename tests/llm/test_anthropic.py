@@ -53,5 +53,6 @@ async def test_parses_text_and_tool_use_and_merges_tool_results() -> None:
     assert request.headers["anthropic-version"] == API_VERSION
     assert body["system"] == "sys"
     assert body["tools"][0]["input_schema"] == {"type": "object"}
+    assert body["tools"][-1]["cache_control"] == {"type": "ephemeral"}
     assert [m["role"] for m in body["messages"]] == ["user", "assistant", "user"]
     assert [b["tool_use_id"] for b in body["messages"][2]["content"]] == ["t1", "t2"]

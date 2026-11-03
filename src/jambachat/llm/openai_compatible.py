@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -6,6 +7,13 @@ import httpx
 
 from jambachat.llm.http import post_json
 from jambachat.llm.types import ChatMessage, LLMError, LLMResponse, ToolCall, ToolSpec
+
+THINK_BLOCK = re.compile(r"<think>.*?(</think>|$)", re.DOTALL | re.IGNORECASE)
+
+
+def strip_reasoning(text: str) -> str:
+    """Remove o raciocínio que modelos como Qwen3 e DeepSeek-R1 escrevem em <think>."""
+    return THINK_BLOCK.sub("", text).strip()
 
 
 def _to_wire(message: ChatMessage) -> dict[str, Any]:
@@ -96,4 +104,4 @@ class OpenAICompatibleClient:
             )
         except (KeyError, IndexError, TypeError, AttributeError) as exc:
             raise LLMError("formato de resposta inesperado do provedor") from exc
-        return LLMResponse(text=(message.get("content") or "").strip(), tool_calls=calls)
+        return LLMResponse(text=strip_reasoning(message.get("content") or ""), tool_calls=calls)

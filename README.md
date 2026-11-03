@@ -35,6 +35,8 @@ uv run python -m jambachat.security.keygen >> .env
 
 Depois remova as linhas `ENCRYPTION_KEYS=` e `INDEX_KEY=` vazias do `.env` e preencha o resto.
 
+Para criar o app na Meta, registrar o webhook e o modelo de mensagem dos lembretes, siga [docs/whatsapp.md](docs/whatsapp.md).
+
 ### Provedor de IA
 
 Qualquer serviço com API compatível com OpenAI funciona, além da Anthropic. O modelo precisa suportar chamada de ferramentas.

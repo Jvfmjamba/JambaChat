@@ -13,7 +13,7 @@ Em desenvolvimento. Marco atual: M1 — Conversa.
 | Lembretes | "me lembra de pagar a luz dia 10 às 9h", "todo dia às 8h tomar remédio", "adia 10 min" |
 | Gastos | "gastei 42 no ifood", "recebi 3000 de salário", "quanto gastei esse mês?", "limite de 800 pra mercado", "me manda a planilha de outubro" |
 | Listas | "põe leite e pão na lista de compras", "marca o pão", "o que falta comprar?" |
-| Pesquisa | "quem ganhou o jogo ontem?", "que horas abre o Detran?" |
+| Pesquisa | "quem ganhou o jogo ontem?", "que horas abre o Detran?", "quem foi Santos Dumont?" |
 | Utilitários | câmbio ("100 dólares em reais"), clima, CEP, calculadora, contas com datas |
 | Perfil | "me chama de Jão", "mudei pra Manaus", "minha cidade é Recife" |
 | Áudio e foto | áudios são transcritos; fotos de notas viram gastos (com modelo de visão) |
@@ -68,7 +68,7 @@ A transcrição usa qualquer API compatível com `/audio/transcriptions` da Open
 
 ### Pesquisa e utilitários
 
-A pesquisa na web usa a [Tavily](https://tavily.com) (plano gratuito) e só fica disponível com `TAVILY_API_KEY`. Câmbio ([AwesomeAPI](https://docs.awesomeapi.com.br)), clima ([Open-Meteo](https://open-meteo.com)) e CEP ([ViaCEP](https://viacep.com.br)) são gratuitos e não precisam de chave.
+A pesquisa na web usa a [Tavily](https://tavily.com) (plano gratuito) e só fica disponível com `TAVILY_API_KEY`. Perguntas de conhecimento geral usam a Wikipédia, sempre disponível. Câmbio ([AwesomeAPI](https://docs.awesomeapi.com.br)), clima ([Open-Meteo](https://open-meteo.com)) e CEP ([ViaCEP](https://viacep.com.br)) são gratuitos e não precisam de chave.
 
 ## Executando
 

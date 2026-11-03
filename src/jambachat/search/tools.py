@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from jambachat.search.tavily import TavilyClient, Topic
+from jambachat.search.wikipedia import WikipediaClient
 from jambachat.tools.registry import Tool, ToolContext
 
 
@@ -42,5 +43,26 @@ def build_search_tools(client: TavilyClient) -> list[Tool]:
             "horários e qualquer coisa que você não saiba com certeza.",
             WebSearchArgs,
             search,
+        )
+    ]
+
+
+class EncyclopediaArgs(BaseModel):
+    query: str = Field(
+        min_length=2, max_length=200, description="Pessoa, lugar, conceito ou acontecimento"
+    )
+
+
+def build_encyclopedia_tools(client: WikipediaClient) -> list[Tool]:
+    async def lookup(ctx: ToolContext, args: EncyclopediaArgs) -> dict[str, Any]:
+        return {**await client.lookup(args.query), "source": "Wikipédia"}
+
+    return [
+        Tool(
+            "encyclopedia",
+            "Resumo da Wikipédia sobre pessoas, lugares, conceitos e fatos históricos. "
+            "Não serve para notícias ou fatos de hoje.",
+            EncyclopediaArgs,
+            lookup,
         )
     ]

@@ -67,3 +67,38 @@ async def test_web_search_failure_is_reported(ctx: ToolContext) -> None:
     respx.post(TAVILY_URL).respond(401, json={"detail": "bad key"})
     result = await search(ctx, query="qualquer coisa")
     assert "indisponível" in result["error"]
+
+
+@respx.mock
+async def test_encyclopedia_lookup(ctx: ToolContext) -> None:
+    respx.get("https://pt.wikipedia.org/w/rest.php/v1/search/page").respond(
+        json={"pages": [{"key": "Santos_Dumont", "title": "Santos Dumont"}, {"title": "Avião"}]}
+    )
+    respx.get("https://pt.wikipedia.org/api/rest_v1/page/summary/Santos_Dumont").respond(
+        json={
+            "title": "Santos Dumont",
+            "description": "aeronauta brasileiro",
+            "extract": "Alberto  Santos-Dumont foi um\naeronauta.",
+            "content_urls": {"desktop": {"page": "https://pt.wikipedia.org/wiki/Santos_Dumont"}},
+        }
+    )
+    async with httpx.AsyncClient() as http:
+        registry = build_registry(make_settings(), http)
+        result = json.loads(
+            await registry.execute(ToolCall("c", "encyclopedia", {"query": "santos dumont"}), ctx)
+        )
+
+    assert result["extract"] == "Alberto Santos-Dumont foi um aeronauta."
+    assert result["url"] == "https://pt.wikipedia.org/wiki/Santos_Dumont"
+    assert result["other_matches"] == ["Avião"]
+
+
+@respx.mock
+async def test_encyclopedia_without_results(ctx: ToolContext) -> None:
+    respx.get("https://pt.wikipedia.org/w/rest.php/v1/search/page").respond(json={"pages": []})
+    async with httpx.AsyncClient() as http:
+        registry = build_registry(make_settings(), http)
+        result = json.loads(
+            await registry.execute(ToolCall("c", "encyclopedia", {"query": "xyzzy"}), ctx)
+        )
+    assert "nada encontrado" in result["error"]

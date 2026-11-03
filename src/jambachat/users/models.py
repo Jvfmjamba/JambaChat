@@ -16,3 +16,4 @@ class User(UUIDPrimaryKey, CreatedAt, Base):
     timezone: Mapped[str] = mapped_column(String(64), default="America/Sao_Paulo")
     is_admin: Mapped[bool] = mapped_column(default=False)
     last_inbound_at: Mapped[datetime | None]
+    context_cleared_at: Mapped[datetime | None]

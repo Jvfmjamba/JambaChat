@@ -17,6 +17,7 @@ class Direction(StrEnum):
 class Role(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
+    TOOL = "tool"
 
 
 class Message(UUIDPrimaryKey, CreatedAt, Base):

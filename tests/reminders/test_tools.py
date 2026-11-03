@@ -118,3 +118,42 @@ async def test_snooze_last_sent_reminder_creates_new_one(session: AsyncSession) 
 
     assert result["snoozed"]["text"] == "tomar remédio"
     assert result["snoozed"]["due_at"] == "ter, 03/11/2026 às 12:10"
+
+
+async def test_update_reminder(session: AsyncSession) -> None:
+    user = await new_user(session, "1")
+    created = await run(
+        session,
+        user,
+        "create_reminder",
+        text="academia",
+        due_at="2026-11-10T07:00",
+        recurrence={"frequency": "semanal", "weekdays": ["seg", "qua"]},
+    )
+    reminder_id = created["created"]["id"]
+
+    updated = await run(
+        session,
+        user,
+        "update_reminder",
+        reminder_id=reminder_id,
+        text="academia cedo",
+        due_at="2026-11-10T06:30",
+    )
+    assert updated["updated"]["text"] == "academia cedo"
+    assert updated["updated"]["due_at"] == "ter, 10/11/2026 às 06:30"
+    assert updated["updated"]["recurrence"] is not None
+
+    plain = await run(
+        session, user, "update_reminder", reminder_id=reminder_id, remove_recurrence=True
+    )
+    assert plain["updated"]["recurrence"] is None
+
+    past = await run(
+        session, user, "update_reminder", reminder_id=reminder_id, due_at="2026-11-01T09:00"
+    )
+    assert "já passou" in past["error"]
+
+    await run(session, user, "cancel_reminder", reminder_id=reminder_id)
+    gone = await run(session, user, "update_reminder", reminder_id=reminder_id, text="x")
+    assert "não encontrado" in gone["error"]

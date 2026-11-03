@@ -74,6 +74,29 @@ class WhatsAppClient:
             ids.append(_message_id(data))
         return ids
 
+    async def send_buttons(self, to: str, text: str, buttons: Sequence[str]) -> str:
+        if not 1 <= len(buttons) <= 3:
+            raise ValueError("o WhatsApp aceita de 1 a 3 botões")
+        data = await self._post(
+            {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": to,
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {"text": text[:1024]},
+                    "action": {
+                        "buttons": [
+                            {"type": "reply", "reply": {"id": f"b{i}", "title": title[:20]}}
+                            for i, title in enumerate(buttons)
+                        ]
+                    },
+                },
+            }
+        )
+        return _message_id(data)
+
     async def send_template(
         self, to: str, name: str, params: Sequence[str] = (), language: str = "pt_BR"
     ) -> str:

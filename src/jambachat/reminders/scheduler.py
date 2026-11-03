@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from jambachat.config import Settings
 from jambachat.conversation.history import save_turn
 from jambachat.llm.types import ChatMessage
+from jambachat.reminders.buttons import REMINDER_BUTTONS
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.recurrence import next_occurrence
 from jambachat.timeutils import as_utc
@@ -98,7 +99,7 @@ class ReminderDispatcher:
     async def _send(self, user: User, text: str, now: datetime) -> None:
         last_inbound = user.last_inbound_at
         if last_inbound is not None and now - as_utc(last_inbound) < SERVICE_WINDOW:
-            await self._whatsapp.send_text(user.phone, reminder_text(text))
+            await self._whatsapp.send_buttons(user.phone, reminder_text(text), REMINDER_BUTTONS)
             return
         await self._whatsapp.send_template(
             user.phone, self._settings.whatsapp_reminder_template, [" ".join(text.split())]

@@ -58,12 +58,15 @@ async def reminders(sessionmaker: Maker) -> list[Reminder]:
         return list(await session.scalars(select(Reminder).order_by(Reminder.due_at)))
 
 
-async def test_inside_window_sends_text_and_records_history(sessionmaker: Maker) -> None:
+async def test_inside_window_sends_buttons_and_records_history(sessionmaker: Maker) -> None:
     await seed(sessionmaker, last_inbound=NOW - timedelta(hours=1))
     sent = await dispatch(sessionmaker)
 
-    assert sent[0]["type"] == "text"
-    assert sent[0]["text"]["body"] == "*Lembrete:* pagar\na luz"
+    assert sent[0]["type"] == "interactive"
+    interactive = sent[0]["interactive"]
+    assert interactive["body"]["text"] == "*Lembrete:* pagar\na luz"
+    titles = [b["reply"]["title"] for b in interactive["action"]["buttons"]]
+    assert titles == ["Adiar 10 min", "Adiar 1 hora", "Feito ✅"]
     [reminder] = await reminders(sessionmaker)
     assert reminder.status == ReminderStatus.SENT
     async with sessionmaker() as session:

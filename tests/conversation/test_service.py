@@ -23,6 +23,7 @@ from jambachat.conversation.service import (
     ConversationService,
 )
 from jambachat.llm.types import LLMError, LLMResponse, ToolCall
+from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.tools.registry import Attachment, Tool, ToolContext, ToolRegistry
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
@@ -232,3 +233,38 @@ async def test_status_command_is_admin_only(sessionmaker: Maker) -> None:
     replies = await converse(sessionmaker, ScriptedLLM(), inbound("/status"))
     assert replies[0].startswith("*JambaChat")
     assert "Usuários: 1" in replies[0]
+
+
+async def test_reminder_buttons_skip_the_model(sessionmaker: Maker) -> None:
+    await converse(sessionmaker, ScriptedLLM(LLMResponse("Oi!")), inbound("oi"))
+    async with sessionmaker() as session:
+        user = (await session.scalars(select(User))).one()
+        session.add(
+            Reminder(
+                user_id=user.id,
+                text="beber água",
+                due_at=datetime.now(UTC),
+                status=ReminderStatus.SENT,
+                sent_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    llm = ScriptedLLM()
+    replies = await converse(
+        sessionmaker,
+        llm,
+        inbound("Adiar 10 min", kind="interactive"),
+        inbound("Feito ✅", kind="interactive"),
+    )
+
+    assert replies[0].startswith("Beleza, te lembro de novo às ")
+    assert replies[1] == "Boa! ✅"
+    assert llm.calls == []
+    async with sessionmaker() as session:
+        pending = list(
+            await session.scalars(
+                select(Reminder.text).where(Reminder.status == ReminderStatus.PENDING)
+            )
+        )
+    assert pending == ["beber água"]

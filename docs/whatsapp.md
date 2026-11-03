@@ -51,8 +51,11 @@ Em **WhatsApp → Gerenciador do WhatsApp → Modelos de mensagem**, crie:
 - Categoria: **Utilidade**
 - Idioma: **Português (BR)**
 - Corpo: `⏰ Lembrete: {{1}}`
+- Botões (opcional, do tipo resposta rápida): `Adiar 10 min`, `Adiar 1 hora` e `Feito ✅`, escritos exatamente assim
 
-A aprovação costuma levar alguns minutos. Dentro da janela de 24 horas, os lembretes saem como texto comum.
+Com os botões, adiar funciona com um toque também fora da janela.
+
+A aprovação costuma levar alguns minutos. Dentro da janela de 24 horas, os lembretes saem como mensagem comum, já com esses três botões.
 
 ## 7. Testar
 

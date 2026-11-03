@@ -17,6 +17,7 @@ from jambachat.conversation.models import Direction, Message, Role
 from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.llm.types import ChatMessage, Image, LLMError
 from jambachat.media.transcriber import Transcriber, TranscriptionError
+from jambachat.reminders.buttons import handle_reminder_button
 from jambachat.timeutils import as_utc
 from jambachat.tools.registry import Attachment, ToolContext
 from jambachat.users.models import User
@@ -166,6 +167,12 @@ class ConversationService:
                 return command_reply
 
         now = datetime.now(ZoneInfo(user.timezone))
+        if message.kind in {"interactive", "button"}:
+            button_reply = await handle_reminder_button(session, user, text, now)
+            if button_reply is not None:
+                await save_turn(session, user.id, [ChatMessage("assistant", button_reply)])
+                return button_reply
+
         latest = await self._latest_inbound_at(session, user.id)
         history = await load_history(session, user, now)
         if images:

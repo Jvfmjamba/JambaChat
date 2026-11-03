@@ -48,6 +48,11 @@ class Settings(BaseSettings):
 
     tavily_api_key: SecretStr = SecretStr("")
 
+    pluggy_client_id: SecretStr = SecretStr("")
+    pluggy_client_secret: SecretStr = SecretStr("")
+    pluggy_base_url: str = "https://api.pluggy.ai"
+    finance_import_enabled: bool = True
+
     monthly_summary: bool = True
 
     scheduler_enabled: bool = True
@@ -63,6 +68,11 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return frozenset(p.strip().lstrip("+") for p in value.split(",") if p.strip())
         return value
+
+    @field_validator("finance_import_enabled", mode="before")
+    @classmethod
+    def _empty_finance_import_enabled_uses_default(cls, value: object) -> object:
+        return True if value == "" else value
 
     @property
     def is_production(self) -> bool:

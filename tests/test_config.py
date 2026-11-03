@@ -13,6 +13,16 @@ def test_empty_phone_list() -> None:
     assert settings.allowed_phones == frozenset()
 
 
+def test_finance_is_disabled_by_missing_credentials() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.pluggy_client_id.get_secret_value() == ""
+    assert settings.pluggy_client_secret.get_secret_value() == ""
+    assert settings.pluggy_base_url == "https://api.pluggy.ai"
+    assert settings.finance_import_enabled is True
+    assert Settings(_env_file=None, finance_import_enabled="").finance_import_enabled is True
+
+
 def test_production_problems_flag_insecure_setups() -> None:
     insecure = Settings(_env_file=None, app_env="production")
     problems = " ".join(insecure.production_problems())

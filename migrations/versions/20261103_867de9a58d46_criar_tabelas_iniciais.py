@@ -10,14 +10,11 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision: str = "867de9a58d46"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-JSON_TYPE = sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
 
 
 def _id_and_created_at() -> list[sa.Column[object]]:
@@ -41,14 +38,15 @@ def _user_fk(table: str) -> sa.ForeignKeyConstraint:
 def upgrade() -> None:
     op.create_table(
         "users",
-        sa.Column("phone", sa.String(length=20), nullable=False),
-        sa.Column("name", sa.String(length=120), nullable=True),
+        sa.Column("phone_hash", sa.String(length=64), nullable=False),
+        sa.Column("phone", sa.Text(), nullable=False),
+        sa.Column("name", sa.Text(), nullable=True),
         sa.Column("timezone", sa.String(length=64), nullable=False),
         sa.Column("is_admin", sa.Boolean(), nullable=False),
         sa.Column("last_inbound_at", sa.DateTime(timezone=True), nullable=True),
         *_id_and_created_at(),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
-        sa.UniqueConstraint("phone", name=op.f("uq_users_phone")),
+        sa.UniqueConstraint("phone_hash", name=op.f("uq_users_phone_hash")),
     )
 
     op.create_table(
@@ -57,7 +55,7 @@ def upgrade() -> None:
         sa.Column("kind", sa.String(length=16), nullable=False),
         sa.Column("amount_cents", sa.BigInteger(), nullable=False),
         sa.Column("currency", sa.String(length=3), nullable=False),
-        sa.Column("description", sa.String(length=255), nullable=False),
+        sa.Column("description", sa.Text(), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("source", sa.String(length=16), nullable=False),
@@ -76,7 +74,7 @@ def upgrade() -> None:
         sa.Column("wa_message_id", sa.String(length=128), nullable=True),
         sa.Column("direction", sa.String(length=16), nullable=False),
         sa.Column("role", sa.String(length=16), nullable=False),
-        sa.Column("content", JSON_TYPE, nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
         *_id_and_created_at(),
         _user_fk("messages"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_messages")),

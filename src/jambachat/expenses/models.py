@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, U
 from sqlalchemy.orm import Mapped, mapped_column
 
 from jambachat.db.base import Base, CreatedAt, UUIDPrimaryKey, utcnow
+from jambachat.security.types import EncryptedText
 
 
 class EntryKind(StrEnum):
@@ -45,7 +46,7 @@ class Expense(UUIDPrimaryKey, CreatedAt, Base):
     kind: Mapped[EntryKind] = mapped_column(String(16), default=EntryKind.EXPENSE)
     amount_cents: Mapped[int] = mapped_column(BigInteger)
     currency: Mapped[str] = mapped_column(String(3), default="BRL")
-    description: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(EncryptedText)
     category: Mapped[str] = mapped_column(String(32), default=Category.OUTROS)
     occurred_at: Mapped[datetime] = mapped_column(default=utcnow)
     source: Mapped[EntrySource] = mapped_column(String(16), default=EntrySource.MANUAL)

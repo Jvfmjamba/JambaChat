@@ -6,6 +6,7 @@ from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from jambachat.db.base import Base, CreatedAt, UUIDPrimaryKey
+from jambachat.security.types import EncryptedJSON
 
 
 class Direction(StrEnum):
@@ -26,4 +27,4 @@ class Message(UUIDPrimaryKey, CreatedAt, Base):
     wa_message_id: Mapped[str | None] = mapped_column(String(128), unique=True)
     direction: Mapped[Direction] = mapped_column(String(16))
     role: Mapped[Role] = mapped_column(String(16))
-    content: Mapped[dict[str, Any]]
+    content: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON)

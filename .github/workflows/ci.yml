@@ -33,7 +33,7 @@ jobs:
       - run: uv run pytest -n auto --cov --cov-report=term-missing
 
   docker:
-    needs: [quality, test]
+    needs: [quality, test, security]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,3 +60,16 @@ jobs:
             ${{ steps.meta.outputs.image }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements.txt
+      - run: uvx pip-audit --strict -r requirements.txt

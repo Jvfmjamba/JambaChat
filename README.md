@@ -1,7 +1,5 @@
-# JambaChat
+# Segurança
 
-Assistente pessoal no WhatsApp para lembretes, controle de gastos, pesquisas rápidas e utilitários do dia a dia.
+## Reportando uma vulnerabilidade
 
-## Status
-
-Em desenvolvimento. Marco atual: M0 — Fundação.
+Não abra issue pública. Use **Security → Report a vulnerability** neste repositório (aviso privado do GitHub). A resposta inicial sai em até 7 dias.

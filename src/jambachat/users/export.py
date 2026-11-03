@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat.conversation.models import Message, Role
 from jambachat.expenses.models import Budget, Expense, RecurringEntry
+from jambachat.finance.models import FinanceConnection
 from jambachat.lists.models import ListItem
 from jambachat.reminders.models import Reminder
 from jambachat.timeutils import as_utc
@@ -65,6 +66,15 @@ async def export_user_data(session: AsyncSession, user: User) -> bytes:
                 "active": r.active,
             }
             for r in await rows(RecurringEntry)
+        ],
+        "finance_connections": [
+            {
+                "institution": c.institution,
+                "status": c.status,
+                "created_at": _iso(c.created_at),
+                "last_synced_at": _iso(c.last_synced_at),
+            }
+            for c in await rows(FinanceConnection)
         ],
         "lists": [
             {"list": i.list_name, "item": i.text, "done": i.done} for i in await rows(ListItem)

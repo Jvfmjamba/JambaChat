@@ -1,18 +1,26 @@
+import json
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
 import respx
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.migration import MigrationContext
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from jambachat.config import get_settings
+from jambachat.db.models import Base
+from jambachat.llm.types import ToolCall
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.reminders.scheduler import ReminderDispatcher
+from jambachat.tools.catalog import build_registry
+from jambachat.tools.registry import ToolContext
 from jambachat.users.models import User
 from jambachat.whatsapp.client import WhatsAppClient
 from tests.fakes import GRAPH_MESSAGES_URL, graph_ok, make_settings
@@ -64,3 +72,40 @@ async def test_dispatcher_with_skip_locked(migrated: None) -> None:
         status = await session.scalar(select(Reminder.status))
     assert status == ReminderStatus.SENT
     await engine.dispose()
+
+
+async def test_models_match_migrations_on_postgres(migrated: None) -> None:
+    engine = create_async_engine(POSTGRES_URL)
+    async with engine.connect() as connection:
+        diff = await connection.run_sync(
+            lambda sync: compare_metadata(MigrationContext.configure(sync), Base.metadata)
+        )
+    await engine.dispose()
+    assert diff == []
+
+
+async def test_finance_tools_on_postgres(migrated: None) -> None:
+    engine = create_async_engine(POSTGRES_URL)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    registry = build_registry()
+    async with sessionmaker() as session:
+        user = User(phone="5512", phone_hash="pg-finance", timezone="America/Sao_Paulo")
+        session.add(user)
+        await session.flush()
+        ctx = ToolContext(session, user, make_settings(), datetime.now(ZoneInfo(user.timezone)))
+
+        async def run(name: str, **args: object) -> dict[str, object]:
+            result: dict[str, object] = json.loads(
+                await registry.execute(ToolCall("c", name, args), ctx)
+            )
+            assert "error" not in result, result
+            return result
+
+        await run("set_budget", category="Mercado", amount="100")
+        added = await run("add_entry", amount="120,50", description="feira", category="Mercado")
+        summary = await run("summarize_entries")
+        await session.rollback()
+    await engine.dispose()
+
+    assert added["budgets"][0]["exceeded_by"] == "R$ 20,50"  # type: ignore[index]
+    assert summary["expenses"] == "R$ 120,50"

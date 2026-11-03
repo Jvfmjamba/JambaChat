@@ -219,3 +219,11 @@ async def test_weather_uses_home_city(registry: ToolRegistry, ctx: ToolContext) 
         route = respx.get(GEOCODING_URL).respond(json={})
         await run(registry, ctx, "weather_forecast")
     assert route.calls[0].request.url.params["name"] == "Xyzzyville"
+
+
+async def test_weather_by_coordinates(registry: ToolRegistry, ctx: ToolContext) -> None:
+    with respx.mock:
+        route = respx.get(FORECAST_URL).respond(json={"current": {}, "daily": {}})
+        result = await run(registry, ctx, "weather_forecast", latitude=-8.05, longitude=-34.9)
+    assert result["place"] == "localização enviada"
+    assert route.calls[0].request.url.params["longitude"] == "-34.9"

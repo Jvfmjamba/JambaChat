@@ -156,3 +156,19 @@ async def test_commands_do_not_enter_llm_history(sessionmaker: Maker) -> None:
     await converse(sessionmaker, llm, inbound("/ajuda"), inbound("oi"))
 
     assert [m.content for m in llm.calls[0][1]] == ["oi"]
+
+
+async def test_reactions_and_stickers_are_ignored(sessionmaker: Maker) -> None:
+    replies = await converse(
+        sessionmaker, ScriptedLLM(), inbound(None, kind="reaction"), inbound(None, kind="sticker")
+    )
+    assert replies == []
+
+
+async def test_location_goes_to_the_model(sessionmaker: Maker) -> None:
+    llm = ScriptedLLM(LLMResponse("Tá sol aí!"))
+    text = "[localização enviada] (latitude -8.05000, longitude -34.90000)"
+    replies = await converse(sessionmaker, llm, inbound(text, kind="location"))
+
+    assert replies == ["Tá sol aí!"]
+    assert llm.calls[0][1][0].content == text

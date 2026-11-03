@@ -22,7 +22,7 @@ from jambachat.tools.registry import ToolContext
 from jambachat.users.models import User
 from jambachat.users.repository import get_or_create_user
 from jambachat.whatsapp.client import MediaTooLargeError, WhatsAppClient, WhatsAppError
-from jambachat.whatsapp.inbound import InboundMessage
+from jambachat.whatsapp.inbound import IGNORED_KINDS, InboundMessage
 
 logger = structlog.get_logger(__name__)
 
@@ -88,6 +88,9 @@ class ConversationService:
 
     async def process(self, user_id: uuid.UUID, message: InboundMessage) -> None:
         log = logger.bind(user_id=str(user_id), wa_message_id=message.wa_message_id)
+        if message.kind in IGNORED_KINDS:
+            log.info("message_ignored", kind=message.kind)
+            return
         try:
             await self._whatsapp.mark_read(message.wa_message_id, typing=True)
         except WhatsAppError as exc:
@@ -158,7 +161,7 @@ class ConversationService:
         self, session: AsyncSession, message: InboundMessage, log: structlog.stdlib.BoundLogger
     ) -> tuple[str, tuple[Image, ...]]:
         """Transforma a mensagem recebida em texto (e imagens) para o modelo."""
-        if message.kind in {"text", "button", "interactive"} and message.text:
+        if message.kind in {"text", "button", "interactive", "location"} and message.text:
             return message.text, ()
         if message.kind == "audio" and message.media_id:
             transcript = await self._transcribe(message.media_id, log)

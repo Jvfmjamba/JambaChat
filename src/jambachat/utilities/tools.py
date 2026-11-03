@@ -10,7 +10,7 @@ from jambachat.utilities.calculator import CalculationError, evaluate
 from jambachat.utilities.cep import CepClient
 from jambachat.utilities.dates import describe_date, describe_gap, shift
 from jambachat.utilities.exchange import ExchangeClient, normalize_currency
-from jambachat.utilities.weather import WeatherClient
+from jambachat.utilities.weather import Place, WeatherClient
 
 
 class CalculateArgs(BaseModel):
@@ -55,6 +55,13 @@ class WeatherArgs(BaseModel):
         "padrão do usuário.",
     )
     days: int = Field(default=1, ge=1, le=7, description="Quantos dias de previsão, de 1 a 7")
+    latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        description="Use com longitude quando o usuário mandar localização",
+    )
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class CepArgs(BaseModel):
@@ -127,6 +134,9 @@ def build_utility_tools(http: httpx.AsyncClient) -> list[Tool]:
         return result
 
     async def forecast(ctx: ToolContext, args: WeatherArgs) -> dict[str, Any]:
+        if args.latitude is not None and args.longitude is not None:
+            place = Place("localização enviada", "", "", args.latitude, args.longitude)
+            return {"place": place.label, **await weather.forecast(place, args.days)}
         city = args.city or ctx.user.home_city
         if not city:
             raise ToolError("qual cidade? o usuário não tem cidade padrão salva")

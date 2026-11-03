@@ -66,3 +66,22 @@ def test_interactive_reply_uses_title() -> None:
 )
 def test_ignores_payloads_without_valid_messages(payload: object) -> None:
     assert parse_webhook(payload) == []
+
+
+def test_location_becomes_text() -> None:
+    payload = webhook_payload(kind="location")
+    raw = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+    raw["location"] = {"latitude": -8.05, "longitude": -34.9, "name": "Marco Zero"}
+    [message] = parse_webhook(payload)
+
+    assert (
+        message.text == "[localização enviada] Marco Zero (latitude -8.05000, longitude -34.90000)"
+    )
+
+
+def test_broken_location_has_no_text() -> None:
+    payload = webhook_payload(kind="location")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["location"] = {"latitude": "x"}
+    [message] = parse_webhook(payload)
+
+    assert message.text is None

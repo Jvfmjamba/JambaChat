@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 MEDIA_KINDS = frozenset({"audio", "image"})
+IGNORED_KINDS = frozenset({"reaction", "sticker", "system", "ephemeral"})
 
 
 @dataclass(frozen=True)
@@ -31,10 +32,22 @@ def _text_of(message: dict[str, Any], kind: str) -> str | None:
         reply = interactive.get("button_reply") or interactive.get("list_reply") or {}
         title = reply.get("title")
         return str(title) if title else None
+    if kind == "location":
+        return _location_text(message.get("location") or {})
     if kind in MEDIA_KINDS:
         caption = (message.get(kind) or {}).get("caption")
         return str(caption) if caption else None
     return None
+
+
+def _location_text(location: dict[str, Any]) -> str | None:
+    try:
+        lat, lon = float(location["latitude"]), float(location["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    label = ", ".join(str(location[k]) for k in ("name", "address") if location.get(k))
+    place = f"{label} " if label else ""
+    return f"[localização enviada] {place}(latitude {lat:.5f}, longitude {lon:.5f})"
 
 
 def _media_of(message: dict[str, Any], kind: str) -> tuple[str | None, str | None]:

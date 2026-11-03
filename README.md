@@ -78,6 +78,12 @@ uv run alembic upgrade head
 uv run uvicorn jambachat.main:app --reload
 ```
 
+Para conversar pelo terminal, sem WhatsApp (bom para testar o provedor de IA antes de configurar a Meta):
+
+```bash
+uv run python -m jambachat.cli "Seu nome"
+```
+
 Ou com Docker:
 
 ```bash

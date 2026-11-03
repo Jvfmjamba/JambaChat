@@ -7,6 +7,8 @@ from typing import Any
 import httpx
 
 from jambachat.config import Settings
+from jambachat.finance.errors import FinanceUnavailableError
+from jambachat.finance.provider import ItemInfo, RawTransaction
 from jambachat.llm.types import ChatMessage, LLMResponse, ToolSpec
 
 PHONE = "5511999990000"
@@ -86,3 +88,29 @@ def graph_ok(request: httpx.Request) -> httpx.Response:
 def sent_texts(route: Any) -> list[str]:
     bodies = [json.loads(call.request.content) for call in route.calls]
     return [b["text"]["body"] for b in bodies if b.get("type") == "text"]
+
+
+class FakeFinanceProvider:
+    def __init__(
+        self,
+        *,
+        items: dict[str, ItemInfo] | None = None,
+        transactions: dict[str, list[RawTransaction]] | None = None,
+    ) -> None:
+        self.items = items or {}
+        self.transactions = transactions or {}
+        self.deleted_items: list[str] = []
+
+    async def list_items(self, item_ref: str) -> ItemInfo:
+        try:
+            return self.items[item_ref]
+        except KeyError as exc:
+            raise FinanceUnavailableError from exc
+
+    async def fetch_transactions(
+        self, item_ref: str, since: Any, until: Any
+    ) -> list[RawTransaction]:
+        return list(self.transactions.get(item_ref, []))
+
+    async def delete_item(self, item_ref: str) -> None:
+        self.deleted_items.append(item_ref)

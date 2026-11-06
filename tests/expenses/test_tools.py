@@ -226,9 +226,9 @@ async def test_export_entries_as_csv(session: AsyncSession) -> None:
     [attachment] = ctx.attachments
     assert attachment.filename == "jambachat_2026-11-01_a_2026-11-20.csv"
     text = attachment.content.decode("utf-8")
-    assert text.startswith("﻿Data;Tipo;Categoria;Descrição;Valor\r\n")
-    assert "02/11/2026;gasto;Moradia;'=HYPERLINK(x);-1234,50" in text
-    assert "20/11/2026;receita;Salário;salário;3000,00" in text
+    assert text.startswith("﻿Data;Tipo;Categoria;Descrição;Valor;Origem\r\n")
+    assert "02/11/2026;gasto;Moradia;'=HYPERLINK(x);-1234,50;manual" in text
+    assert "20/11/2026;receita;Salário;salário;3000,00;manual" in text
 
     empty_ctx = ToolContext(session, user, make_settings(), ctx.now)
     empty = json.loads(

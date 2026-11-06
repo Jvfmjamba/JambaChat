@@ -1,12 +1,13 @@
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from jambachat.expenses.models import EntryKind, Expense
+from jambachat.expenses.models import EntryKind, EntrySource, Expense
+from jambachat.finance.models import ExpenseLink, FinanceSuppression
 from jambachat.text import fold
 from jambachat.users.models import User
 
@@ -22,6 +23,7 @@ class EntryFilter:
     kind: EntryKind | None = None
     category: str | None = None
     query: str | None = None
+    exclude_hidden: bool = True
 
 
 @dataclass
@@ -45,6 +47,8 @@ async def add_entry(
     description: str,
     category: str,
     occurred_at: datetime,
+    source: EntrySource = EntrySource.MANUAL,
+    external_id: str | None = None,
 ) -> Expense:
     entry = Expense(
         user_id=user.id,
@@ -53,6 +57,8 @@ async def add_entry(
         description=description,
         category=category,
         occurred_at=occurred_at,
+        source=source,
+        external_id=external_id,
     )
     session.add(entry)
     await session.flush()
@@ -69,11 +75,53 @@ async def find_entries(session: AsyncSession, user: User, flt: EntryFilter) -> l
         query = query.where(Expense.kind == flt.kind)
     if flt.category is not None:
         query = query.where(Expense.category == flt.category)
+    if flt.exclude_hidden:
+        query = query.where(
+            Expense.id.not_in(
+                select(ExpenseLink.imported_expense_id).where(ExpenseLink.user_id == user.id)
+            )
+        )
     rows = list(await session.scalars(query.order_by(Expense.occurred_at.desc())))
     if flt.query:
         needle = fold(flt.query)
         rows = [r for r in rows if needle in fold(r.description)]
     return rows
+
+
+async def find_match_for_import(
+    session: AsyncSession,
+    user: User,
+    kind: EntryKind,
+    amount_cents: int,
+    occurred_at: datetime,
+) -> Expense | None:
+    candidates = list(
+        await session.scalars(
+            select(Expense)
+            .where(
+                Expense.user_id == user.id,
+                Expense.kind == kind,
+                Expense.amount_cents == amount_cents,
+                Expense.source.in_([EntrySource.MANUAL, EntrySource.WALLET]),
+                Expense.occurred_at >= occurred_at - timedelta(days=4),
+                Expense.occurred_at <= occurred_at + timedelta(days=4),
+                Expense.id.not_in(
+                    select(ExpenseLink.matched_expense_id).where(ExpenseLink.user_id == user.id)
+                ),
+            )
+            .order_by(Expense.created_at, Expense.id)
+        )
+    )
+    candidates = [
+        entry
+        for entry in candidates
+        if abs((entry.occurred_at.date() - occurred_at.date()).days) <= 3
+    ]
+    if not candidates:
+        return None
+    return min(
+        candidates, key=lambda entry: abs((entry.occurred_at.date() - occurred_at.date()).days)
+    )
 
 
 def summarize(entries: list[Expense]) -> Summary:
@@ -101,6 +149,14 @@ async def get_owned(session: AsyncSession, user: User, entry_id: str) -> Expense
 
 async def delete_entry(session: AsyncSession, user: User, entry_id: str) -> Expense:
     entry = await get_owned(session, user, entry_id)
+    if entry.source == EntrySource.OPEN_FINANCE and entry.external_id is not None:
+        session.add(
+            FinanceSuppression(
+                user_id=user.id,
+                source=entry.source,
+                external_id=entry.external_id,
+            )
+        )
     await session.delete(entry)
     await session.flush()
     return entry

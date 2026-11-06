@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     def _empty_finance_import_enabled_uses_default(cls, value: object) -> object:
         return True if value == "" else value
 
+    @field_validator("pluggy_base_url")
+    @classmethod
+    def _validate_pluggy_base_url(cls, value: str) -> str:
+        if not value:
+            return "https://api.pluggy.ai"
+        if not value.startswith("https://"):
+            raise ValueError("PLUGGY_BASE_URL deve começar com https://")
+        return value
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

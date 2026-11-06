@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -13,6 +13,8 @@ from jambachat.container import Container
 from jambachat.conversation.orchestrator import Orchestrator
 from jambachat.conversation.service import ConversationService
 from jambachat.expenses.models import Expense
+from jambachat.finance.models import FinanceConnection
+from jambachat.finance.provider import ItemInfo, RawTransaction
 from jambachat.llm.factory import create_llm_client
 from jambachat.main import create_app
 from jambachat.reminders.models import Reminder, ReminderStatus
@@ -21,6 +23,7 @@ from jambachat.tools.catalog import build_registry
 from jambachat.whatsapp.client import WhatsAppClient
 from tests.fakes import (
     GRAPH_MESSAGES_URL,
+    FakeFinanceProvider,
     graph_ok,
     make_settings,
     sent_texts,
@@ -178,3 +181,75 @@ async def post(client: AsyncClient, payload: dict[str, Any]) -> None:
         "/webhook", content=body, headers={"x-hub-signature-256": sign(body)}
     )
     assert response.status_code == 200
+
+
+async def test_open_finance_flows_from_webhook_to_database(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = make_settings()
+    today = datetime.now(SP).date()
+    fetches: list[str] = []
+
+    class Provider(FakeFinanceProvider):
+        async def fetch_transactions(
+            self, item_ref: str, since: date, until: date
+        ) -> list[RawTransaction]:
+            fetches.append(item_ref)
+            return await super().fetch_transactions(item_ref, since, until)
+
+    provider = Provider(
+        items={"item-1": ItemInfo("Banco Azul", "UPDATED")},
+        transactions={
+            "item-1": [
+                RawTransaction(
+                    "tx-1", today, -8750, "Padaria Central", "Food", "expense", "POSTED", False
+                ),
+                RawTransaction("tx-2", today, -1000, "Pendente", None, "expense", "PENDING", False),
+            ]
+        },
+    )
+    with respx.mock:
+        respx.route(host="test").pass_through()
+        respx.post(LLM_URL).mock(
+            side_effect=[
+                completion(None, [{"name": "import_now", "arguments": {}}]),
+                completion("Importei 1 transação do Banco Azul."),
+            ]
+        )
+        graph = respx.post(GRAPH_MESSAGES_URL).mock(side_effect=graph_ok)
+        async with httpx.AsyncClient() as http:
+            whatsapp = WhatsAppClient(
+                http, access_token="t", phone_number_id="123", api_version="v23.0"
+            )
+            orchestrator = Orchestrator(
+                create_llm_client(settings, http), build_registry(settings, http, provider)
+            )
+            conversation = ConversationService(
+                sessionmaker, whatsapp, orchestrator, settings, finance_provider=provider
+            )
+            app = create_app(Container(settings, sessionmaker, conversation))
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                await post(c, webhook_payload("/banco item-1", message_id="wamid.connect"))
+                assert fetches == []
+                await post(c, webhook_payload("importa agora", message_id="wamid.import"))
+
+    assert sent_texts(graph) == [
+        "Banco Banco Azul conectado.",
+        "Importei 1 transação do Banco Azul.",
+    ]
+    assert fetches == ["item-1"]
+    async with sessionmaker() as session:
+        connection = (await session.scalars(select(FinanceConnection))).one()
+        expense = (await session.scalars(select(Expense))).one()
+    assert connection.item_ref == "item-1"
+    assert connection.last_synced_at is not None
+    assert (expense.source, expense.external_id, expense.amount_cents) == (
+        "open_finance",
+        "tx-1",
+        8750,
+    )
+    assert (expense.kind, expense.category, expense.user_id) == (
+        "expense",
+        "Alimentação",
+        connection.user_id,
+    )

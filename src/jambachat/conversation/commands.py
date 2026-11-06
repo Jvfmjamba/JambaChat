@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from jambachat import __version__
 from jambachat.config import Settings
+from jambachat.finance.errors import FinanceError
+from jambachat.finance.provider import FinanceProvider, NullFinanceProvider
+from jambachat.finance.service import FinanceConnectionError, FinanceService
+from jambachat.finance.tools import _view
 from jambachat.reminders.models import Reminder, ReminderStatus
 from jambachat.tools.registry import Attachment
 from jambachat.users.export import export_user_data
@@ -28,6 +32,7 @@ HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 /limpar — esqueço o assunto atual
 /exportar-meus-dados — mando um arquivo com tudo que tenho sobre você
 /atalho — registro sozinho as compras feitas com o iPhone
+/banco [id] — listo bancos conectados ou conecto um banco pelo identificador
 /apagar-meus-dados — apago tudo que tenho sobre você"""
 
 CLEARED_TEXT = "Pronto, esqueci o assunto. Pode começar do zero."
@@ -39,6 +44,9 @@ DELETED_TEXT = "Seus dados foram apagados. Se mandar outra mensagem, começo do 
 EXPORTED_TEXT = "Aqui está tudo que eu guardo sobre você."
 UNKNOWN_TEXT = "Não conheço esse comando. Mande /ajuda pra ver o que eu faço."
 WALLET_OFF_TEXT = "Pronto, o atalho da Carteira foi desligado. O código antigo não funciona mais."
+BANK_EMPTY_TEXT = (
+    "Nenhum banco conectado. Conecte no Meu Pluggy e mande /banco seguido do identificador."
+)
 
 
 def wallet_text(token: str, base_url: str) -> str:
@@ -97,10 +105,12 @@ async def handle_command(
     settings: Settings | None = None,
     tools: int = 0,
     attachments: list[Attachment] | None = None,
+    finance_provider: FinanceProvider | None = None,
 ) -> str | None:
     if not text.startswith("/"):
         return None
-    command, _, argument = text.strip().lower().partition(" ")
+    command, _, argument = text.strip().partition(" ")
+    command = command.lower()
     match command:
         case "/ajuda" | "/help" | "/start":
             return HELP_TEXT
@@ -118,10 +128,49 @@ async def handle_command(
                 revoke_token(user)
                 return WALLET_OFF_TEXT
             return wallet_text(issue_token(user), settings.public_base_url if settings else "")
+        case "/banco":
+            service = FinanceService(finance_provider or NullFinanceProvider())
+            parts = argument.strip().split()
+            if not parts:
+                connections = await service.list_connections(session, user)
+                if not connections:
+                    return BANK_EMPTY_TEXT
+                return "\n".join(
+                    [
+                        "*Bancos conectados*",
+                        *(
+                            f"• {view['institution']} — {view['status']}"
+                            + (
+                                f"; última importação: {view['last_import']}"
+                                if view["last_import"]
+                                else ""
+                            )
+                            + f"\n  Id: {view['id']}"
+                            for view in (
+                                _view(connection, user.timezone) for connection in connections
+                            )
+                        ),
+                    ]
+                )
+            if parts[0].casefold() == "remover":
+                if len(parts) != 3 or parts[2].casefold() != "confirmar":
+                    return "Para desconectar, mande: /banco remover <id> confirmar"
+                try:
+                    await service.remove(session, user, parts[1])
+                except (FinanceError, FinanceConnectionError) as exc:
+                    return str(exc)
+                return "Banco desconectado. Seus gastos importados foram mantidos."
+            if len(parts) != 1:
+                return "Use /banco <identificador> para conectar um banco."
+            try:
+                connection = await service.connect(session, user, parts[0])
+            except (FinanceError, FinanceConnectionError) as exc:
+                return str(exc)
+            return f"Banco {connection.institution} conectado."
         case "/apagar-meus-dados":
             if argument.strip() != "confirmar":
                 return DELETE_CONFIRM_TEXT
-            await delete_user_data(session, user)
+            await delete_user_data(session, user, finance_provider or NullFinanceProvider())
             return DELETED_TEXT
         case _:
             return UNKNOWN_TEXT

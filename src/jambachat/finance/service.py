@@ -1,11 +1,13 @@
 import re
+import uuid
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from jambachat.finance.errors import FinanceAuthError
+from jambachat.finance.errors import FinanceAuthError, FinanceError
 from jambachat.finance.models import FinanceConnection
 from jambachat.finance.provider import FinanceProvider
 from jambachat.users.models import User
@@ -57,10 +59,14 @@ class FinanceService:
         )
 
     async def remove(self, session: AsyncSession, user: User, connection_id: str) -> None:
-        connection = await session.get(FinanceConnection, connection_id)
+        try:
+            connection = await session.get(FinanceConnection, uuid.UUID(connection_id))
+        except ValueError as exc:
+            raise FinanceConnectionError("conexao nao encontrada") from exc
         if connection is None or connection.user_id != user.id:
             raise FinanceConnectionError("conex\u00e3o n\u00e3o encontrada")
-        await self._provider.delete_item(connection.item_ref)
+        with suppress(FinanceError):
+            await self._provider.delete_item(connection.item_ref)
         await session.delete(connection)
 
     def allow_manual_sync(self, connection: FinanceConnection, now: datetime | None = None) -> None:

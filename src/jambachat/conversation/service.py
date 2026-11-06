@@ -16,6 +16,7 @@ from jambachat.conversation.commands import handle_command
 from jambachat.conversation.history import is_command, load_history, save_turn
 from jambachat.conversation.models import Direction, Message, Role
 from jambachat.conversation.orchestrator import Orchestrator
+from jambachat.finance.provider import FinanceProvider, NullFinanceProvider
 from jambachat.llm.types import ChatMessage, Image, LLMError
 from jambachat.media.transcriber import Transcriber, TranscriptionError
 from jambachat.reminders.buttons import handle_reminder_button
@@ -70,6 +71,7 @@ class ConversationService:
         settings: Settings,
         transcriber: Transcriber | None = None,
         limiter: RateLimiter | None = None,
+        finance_provider: FinanceProvider | None = None,
     ) -> None:
         self._transcriber = transcriber
         self._sessionmaker = sessionmaker
@@ -77,6 +79,7 @@ class ConversationService:
         self._orchestrator = orchestrator
         self._settings = settings
         self._limiter = limiter or RateLimiter.from_settings(settings)
+        self._finance_provider = finance_provider or NullFinanceProvider()
         self._locks: dict[uuid.UUID, _UserLock] = {}
         self._answered_until: dict[uuid.UUID, datetime] = {}
 
@@ -221,7 +224,13 @@ class ConversationService:
 
         if not message.has_media:
             command_reply = await handle_command(
-                session, user, text, self._settings, self._orchestrator.tool_count, attachments
+                session,
+                user,
+                text,
+                self._settings,
+                self._orchestrator.tool_count,
+                attachments,
+                self._finance_provider,
             )
             if command_reply is not None:
                 return command_reply

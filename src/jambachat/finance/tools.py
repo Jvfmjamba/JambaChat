@@ -1,3 +1,4 @@
+from contextlib import suppress
 from datetime import UTC
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -7,6 +8,7 @@ from pydantic import Field, model_validator
 from jambachat.finance.errors import FinanceError
 from jambachat.finance.importer import FinanceImporter
 from jambachat.finance.models import FinanceConnection
+from jambachat.finance.provider import FinanceProvider
 from jambachat.finance.service import (
     FinanceConnectionError,
     FinanceService,
@@ -55,7 +57,9 @@ def _view(connection: FinanceConnection, timezone: str) -> dict[str, str | None]
     }
 
 
-def build_finance_tools(service: FinanceService, importer: FinanceImporter) -> list[Tool]:
+def build_finance_tools(
+    provider: FinanceProvider, service: FinanceService, importer: FinanceImporter
+) -> list[Tool]:
     async def connect_bank(ctx: ToolContext, args: ConnectBankArgs) -> dict[str, str]:
         try:
             connection = await service.connect(ctx.session, ctx.user, args.item_ref)
@@ -106,8 +110,10 @@ def build_finance_tools(service: FinanceService, importer: FinanceImporter) -> l
                 "connection": _view(connection, ctx.user.timezone),
             }
         try:
-            await service.remove(ctx.session, ctx.user, str(connection.id))
-        except (FinanceError, FinanceConnectionError) as exc:
+            with suppress(FinanceError):
+                await provider.delete_item(connection.item_ref)
+            await ctx.session.delete(connection)
+        except FinanceConnectionError as exc:
             raise ToolError(str(exc)) from exc
         return {"disconnected": connection.institution}
 

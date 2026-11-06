@@ -1,3 +1,4 @@
+from contextlib import suppress
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -155,10 +156,21 @@ async def handle_command(
             if parts[0].casefold() == "remover":
                 if len(parts) != 3 or parts[2].casefold() != "confirmar":
                     return "Para desconectar, mande: /banco remover <id> confirmar"
-                try:
-                    await service.remove(session, user, parts[1])
-                except (FinanceError, FinanceConnectionError) as exc:
-                    return str(exc)
+                connection = next(
+                    (
+                        current
+                        for current in await service.list_connections(session, user)
+                        if str(current.id) == parts[1]
+                    ),
+                    None,
+                )
+                if connection is None:
+                    return "conexão não encontrada"
+                with suppress(FinanceError):
+                    await (finance_provider or NullFinanceProvider()).delete_item(
+                        connection.item_ref
+                    )
+                await session.delete(connection)
                 return "Banco desconectado. Seus gastos importados foram mantidos."
             if len(parts) != 1:
                 return "Use /banco <identificador> para conectar um banco."

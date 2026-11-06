@@ -34,7 +34,7 @@ def build_registry(
     ]
     if finance_provider is not None:
         tools += build_finance_tools(
-            FinanceService(finance_provider), FinanceImporter(finance_provider)
+            finance_provider, FinanceService(finance_provider), FinanceImporter(finance_provider)
         )
     if http is not None:
         tools += build_utility_tools(http)

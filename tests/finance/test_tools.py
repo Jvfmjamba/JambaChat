@@ -38,7 +38,7 @@ async def test_finance_tools_hide_item_ref_and_require_disconnect_confirmation(
 ) -> None:
     provider = FakeFinanceProvider(items={"item-1": ItemInfo("Banco Azul", "UPDATED")})
     registry = ToolRegistry(
-        build_finance_tools(FinanceService(provider), FinanceImporter(provider))
+        build_finance_tools(provider, FinanceService(provider), FinanceImporter(provider))
     )
     async with sessionmaker() as session:
         user = await _user(session)
@@ -67,7 +67,7 @@ async def test_import_now_respects_manual_sync_interval(
 ) -> None:
     provider = FakeFinanceProvider(items={"item-1": ItemInfo("Banco Azul", "UPDATED")})
     registry = ToolRegistry(
-        build_finance_tools(FinanceService(provider), FinanceImporter(provider))
+        build_finance_tools(provider, FinanceService(provider), FinanceImporter(provider))
     )
     async with sessionmaker() as session:
         user = await _user(session)

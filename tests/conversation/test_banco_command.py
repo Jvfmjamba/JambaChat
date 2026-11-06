@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from jambachat.conversation.commands import BANK_EMPTY_TEXT, handle_command
@@ -49,3 +50,19 @@ async def test_banco_lists_only_own_connections_and_requires_confirmation(
             await handle_command(session, user, "/banco", finance_provider=provider)
             == BANK_EMPTY_TEXT
         )
+
+
+async def test_commands_accept_uppercase_confirmation_arguments(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    async with sessionmaker() as session:
+        user = await _user(session, "1")
+
+        await handle_command(session, user, "/atalho")
+        assert user.wallet_token_hash is not None
+        assert await handle_command(session, user, "/atalho Desligar")
+        assert user.wallet_token_hash is None
+
+        assert await handle_command(session, user, "/apagar-meus-dados Confirmar")
+        await session.flush()
+        assert await session.scalar(select(User).where(User.id == user.id)) is None

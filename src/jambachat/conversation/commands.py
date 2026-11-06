@@ -125,7 +125,7 @@ async def handle_command(
             attachments.append(Attachment("jambachat-meus-dados.json", "application/json", content))
             return EXPORTED_TEXT
         case "/atalho":
-            if argument.strip() == "desligar":
+            if argument.strip().lower() == "desligar":
                 revoke_token(user)
                 return WALLET_OFF_TEXT
             return wallet_text(issue_token(user), settings.public_base_url if settings else "")
@@ -180,7 +180,7 @@ async def handle_command(
                 return str(exc)
             return f"Banco {connection.institution} conectado."
         case "/apagar-meus-dados":
-            if argument.strip() != "confirmar":
+            if argument.strip().lower() != "confirmar":
                 return DELETE_CONFIRM_TEXT
             await delete_user_data(session, user, finance_provider or NullFinanceProvider())
             return DELETED_TEXT

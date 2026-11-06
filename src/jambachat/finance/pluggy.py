@@ -64,9 +64,7 @@ class PluggyProvider:
         for attempt in range(2):
             api_key = await self._get_api_key()
             try:
-                return await self._send(
-                    method, path, params=params, headers={"X-API-KEY": api_key}
-                )
+                return await self._send(method, path, params=params, headers={"X-API-KEY": api_key})
             except FinanceAuthError:
                 if attempt == 1:
                     raise

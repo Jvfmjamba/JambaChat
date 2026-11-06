@@ -57,7 +57,12 @@ async def test_refreshes_api_key_once_after_unauthorized_response() -> None:
     provider = _provider(httpx.MockTransport(handler))
 
     assert (await provider.list_items("item")).institution == "Banco"
-    assert [request.url.path for request in calls] == ["/auth", "/items/item", "/auth", "/items/item"]
+    assert [request.url.path for request in calls] == [
+        "/auth",
+        "/items/item",
+        "/auth",
+        "/items/item",
+    ]
     assert calls[-1].headers["X-API-KEY"] == "key-3"
 
 

@@ -61,8 +61,17 @@ class PluggyProvider:
     async def _request(
         self, method: str, path: str, *, params: dict[str, str] | None = None
     ) -> Any:
-        api_key = await self._get_api_key()
-        return await self._send(method, path, params=params, headers={"X-API-KEY": api_key})
+        for attempt in range(2):
+            api_key = await self._get_api_key()
+            try:
+                return await self._send(
+                    method, path, params=params, headers={"X-API-KEY": api_key}
+                )
+            except FinanceAuthError:
+                if attempt == 1:
+                    raise
+                self._api_key = None
+        raise FinanceAuthError("a autorização do agregador precisa ser renovada")
 
     async def _get_api_key(self) -> str:
         if self._api_key is not None:

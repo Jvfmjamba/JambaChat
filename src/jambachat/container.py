@@ -61,7 +61,6 @@ def build_container(settings: Settings) -> Container:
         phone_number_id=settings.whatsapp_phone_number_id,
         api_version=settings.whatsapp_api_version,
     )
-    orchestrator = Orchestrator(create_llm_client(settings, http), build_registry(settings, http))
     finance_provider: FinanceProvider = (
         PluggyProvider(
             http,
@@ -71,6 +70,14 @@ def build_container(settings: Settings) -> Container:
         )
         if settings.pluggy_client_id.get_secret_value()
         else NullFinanceProvider()
+    )
+    orchestrator = Orchestrator(
+        create_llm_client(settings, http),
+        build_registry(
+            settings,
+            http,
+            finance_provider if settings.pluggy_client_id.get_secret_value() else None,
+        ),
     )
     scheduler = (
         ReminderScheduler(
@@ -100,6 +107,7 @@ def build_container(settings: Settings) -> Container:
             settings,
             transcriber=_transcriber(settings, http),
             limiter=RateLimiter.from_settings(settings),
+            finance_provider=finance_provider,
         ),
         scheduler=scheduler,
         wallet=WalletService(

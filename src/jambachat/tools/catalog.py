@@ -4,6 +4,10 @@ from jambachat.config import Settings
 from jambachat.expenses.budgets import BUDGET_TOOLS
 from jambachat.expenses.recurring import RECURRING_TOOLS
 from jambachat.expenses.tools import EXPENSE_TOOLS
+from jambachat.finance.importer import FinanceImporter
+from jambachat.finance.provider import FinanceProvider
+from jambachat.finance.service import FinanceService
+from jambachat.finance.tools import build_finance_tools
 from jambachat.lists.tools import LIST_TOOLS
 from jambachat.reminders.tools import REMINDER_TOOLS
 from jambachat.search.tavily import TavilyClient
@@ -15,7 +19,9 @@ from jambachat.utilities.tools import OFFLINE_TOOLS, build_utility_tools
 
 
 def build_registry(
-    settings: Settings | None = None, http: httpx.AsyncClient | None = None
+    settings: Settings | None = None,
+    http: httpx.AsyncClient | None = None,
+    finance_provider: FinanceProvider | None = None,
 ) -> ToolRegistry:
     tools: list[Tool] = [
         *REMINDER_TOOLS,
@@ -26,6 +32,10 @@ def build_registry(
         *OFFLINE_TOOLS,
         *PROFILE_TOOLS,
     ]
+    if finance_provider is not None:
+        tools += build_finance_tools(
+            finance_provider, FinanceService(finance_provider), FinanceImporter(finance_provider)
+        )
     if http is not None:
         tools += build_utility_tools(http)
         tools += build_encyclopedia_tools(WikipediaClient(http))

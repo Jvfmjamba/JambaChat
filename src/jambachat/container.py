@@ -10,6 +10,10 @@ from jambachat.conversation.service import ConversationService
 from jambachat.db.session import get_engine, get_sessionmaker
 from jambachat.expenses.recurring import RecurringEntryJob
 from jambachat.expenses.summary_job import MonthlySummaryJob
+from jambachat.finance.importer import FinanceImporter
+from jambachat.finance.job import FinanceImportJob
+from jambachat.finance.pluggy import PluggyProvider
+from jambachat.finance.provider import FinanceProvider, NullFinanceProvider
 from jambachat.llm.factory import create_llm_client
 from jambachat.media.transcriber import Transcriber
 from jambachat.reminders.scheduler import ReminderDispatcher, ReminderScheduler
@@ -27,6 +31,7 @@ class Container:
     conversation: ConversationService
     scheduler: ReminderScheduler | None = None
     wallet: WalletService | None = None
+    finance_provider: FinanceProvider = field(default_factory=NullFinanceProvider)
     closers: list[Callable[[], Awaitable[None]]] = field(default_factory=list)
 
     def start(self) -> None:
@@ -57,6 +62,16 @@ def build_container(settings: Settings) -> Container:
         api_version=settings.whatsapp_api_version,
     )
     orchestrator = Orchestrator(create_llm_client(settings, http), build_registry(settings, http))
+    finance_provider: FinanceProvider = (
+        PluggyProvider(
+            http,
+            client_id=settings.pluggy_client_id,
+            client_secret=settings.pluggy_client_secret,
+            base_url=settings.pluggy_base_url,
+        )
+        if settings.pluggy_client_id.get_secret_value()
+        else NullFinanceProvider()
+    )
     scheduler = (
         ReminderScheduler(
             ReminderDispatcher(sessionmaker, whatsapp, settings),
@@ -64,6 +79,12 @@ def build_container(settings: Settings) -> Container:
             [
                 RecurringEntryJob(sessionmaker),
                 *([MonthlySummaryJob(sessionmaker, whatsapp)] if settings.monthly_summary else []),
+                *(
+                    [FinanceImportJob(sessionmaker, FinanceImporter(finance_provider), whatsapp)]
+                    if settings.finance_import_enabled
+                    and settings.pluggy_client_id.get_secret_value()
+                    else []
+                ),
             ],
         )
         if settings.scheduler_enabled
@@ -84,6 +105,7 @@ def build_container(settings: Settings) -> Container:
         wallet=WalletService(
             sessionmaker, whatsapp, settings, RateLimiter([(10, 60), (200, 86_400)])
         ),
+        finance_provider=finance_provider,
         closers=[http.aclose, get_engine().dispose],
     )
 

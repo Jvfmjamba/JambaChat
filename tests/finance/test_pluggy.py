@@ -1,10 +1,12 @@
 from datetime import date
+import logging
 
 import httpx
 import pytest
 
 from jambachat.finance.errors import FinanceAuthError, FinanceError
 from jambachat.finance.pluggy import PluggyProvider
+from jambachat.logging import configure_logging
 
 
 def _provider(handler: httpx.MockTransport) -> PluggyProvider:
@@ -14,6 +16,12 @@ def _provider(handler: httpx.MockTransport) -> PluggyProvider:
         client_secret="secret",
         base_url="https://pluggy.test",
     )
+
+
+def test_httpx_logger_uses_warning_level() -> None:
+    configure_logging("INFO", json=False)
+
+    assert logging.getLogger("httpx").level == logging.WARNING
 
 
 @pytest.mark.asyncio
@@ -32,6 +40,30 @@ async def test_reads_item_and_caches_api_key() -> None:
     assert (await provider.list_items("two")).status == "UPDATED"
     assert [request.url.path for request in calls] == ["/auth", "/items/one", "/items/two"]
     assert calls[1].headers["X-API-KEY"] == "key"
+
+
+@pytest.mark.asyncio
+async def test_refreshes_api_key_once_after_unauthorized_response() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.path == "/auth":
+            return httpx.Response(200, json={"apiKey": f"key-{len(calls)}"})
+        if request.headers["X-API-KEY"] == "key-1":
+            return httpx.Response(401)
+        return httpx.Response(200, json={"status": "UPDATED", "connector": {"name": "Banco"}})
+
+    provider = _provider(httpx.MockTransport(handler))
+
+    assert (await provider.list_items("item")).institution == "Banco"
+    assert [request.url.path for request in calls] == [
+        "/auth",
+        "/items/item",
+        "/auth",
+        "/items/item",
+    ]
+    assert calls[-1].headers["X-API-KEY"] == "key-3"
 
 
 @pytest.mark.asyncio

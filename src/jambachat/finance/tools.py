@@ -1,8 +1,8 @@
-from contextlib import suppress
 from datetime import UTC
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import structlog
 from pydantic import Field, model_validator
 
 from jambachat.finance.errors import FinanceError
@@ -16,6 +16,8 @@ from jambachat.finance.service import (
 )
 from jambachat.timeutils import format_local_date
 from jambachat.tools.registry import Tool, ToolArgs, ToolContext, ToolError
+
+logger = structlog.get_logger(__name__)
 
 
 class ConnectBankArgs(ToolArgs):
@@ -109,13 +111,24 @@ def build_finance_tools(
                 ),
                 "connection": _view(connection, ctx.user.timezone),
             }
+        aggregator_failed = False
         try:
-            with suppress(FinanceError):
+            try:
                 await provider.delete_item(connection.item_ref)
+            except Exception as exc:
+                logger.warning(
+                    "finance_delete_item_failed",
+                    connection_id=str(connection.id),
+                    error=type(exc).__name__,
+                )
+                aggregator_failed = True
             await ctx.session.delete(connection)
         except FinanceConnectionError as exc:
             raise ToolError(str(exc)) from exc
-        return {"disconnected": connection.institution}
+        response: dict[str, Any] = {"disconnected": connection.institution}
+        if aggregator_failed:
+            response["warning"] = "A remoção no agregador falhou."
+        return response
 
     return [
         Tool(

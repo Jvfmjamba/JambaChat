@@ -12,7 +12,7 @@ from jambachat.finance.errors import FinanceError
 from jambachat.finance.models import ExpenseLink, FinanceConnection, FinanceSuppression
 from jambachat.users.export import export_user_data
 from jambachat.users.models import User
-from jambachat.users.repository import delete_user_data
+from jambachat.users.repository import delete_user_data, logger
 
 
 async def _user(session: AsyncSession) -> User:
@@ -119,10 +119,17 @@ class FailingFinanceProvider(FakeFinanceProvider):
 @pytest.mark.asyncio
 async def test_deletion_continues_when_finance_provider_fails(
     sessionmaker: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    warnings: list[tuple[str, dict[str, str]]] = []
+
+    def warning(event: str, **kwargs: str) -> None:
+        warnings.append((event, kwargs))
+
+    monkeypatch.setattr(logger, "warning", warning)
     async with sessionmaker() as session:
         user = await _user(session)
-        await _finance_data(session, user)
+        connection = await _finance_data(session, user)
 
         await delete_user_data(session, user, FailingFinanceProvider())
         await session.flush()
@@ -131,3 +138,9 @@ async def test_deletion_continues_when_finance_provider_fails(
         assert not (await session.scalars(select(ExpenseLink))).all()
         assert not (await session.scalars(select(FinanceSuppression))).all()
         assert not (await session.scalars(select(Expense))).all()
+        assert warnings == [
+            (
+                "finance_delete_item_failed",
+                {"connection_id": str(connection.id), "error": "FinanceError"},
+            )
+        ]

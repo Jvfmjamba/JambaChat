@@ -1,3 +1,5 @@
+import pytest
+
 from jambachat.config import Settings
 
 
@@ -21,6 +23,13 @@ def test_finance_is_disabled_by_missing_credentials() -> None:
     assert settings.pluggy_base_url == "https://api.pluggy.ai"
     assert settings.finance_import_enabled is True
     assert Settings(_env_file=None, finance_import_enabled="").finance_import_enabled is True
+
+
+def test_pluggy_base_url_requires_https() -> None:
+    assert Settings(_env_file=None, pluggy_base_url="").pluggy_base_url == "https://api.pluggy.ai"
+
+    with pytest.raises(ValueError, match="PLUGGY_BASE_URL deve começar com https://"):
+        Settings(_env_file=None, pluggy_base_url="http://api.pluggy.ai")
 
 
 def test_production_problems_flag_insecure_setups() -> None:

@@ -1,6 +1,6 @@
-from contextlib import suppress
 from datetime import UTC, datetime
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,8 @@ from jambachat.users.export import export_user_data
 from jambachat.users.models import User
 from jambachat.users.repository import delete_user_data
 from jambachat.wallet.service import issue_token, revoke_token
+
+logger = structlog.get_logger(__name__)
 
 HELP_TEXT = """*JambaChat* — é só falar comigo normalmente:
 
@@ -166,11 +168,21 @@ async def handle_command(
                 )
                 if connection is None:
                     return "conexão não encontrada"
-                with suppress(FinanceError):
+                aggregator_failed = False
+                try:
                     await (finance_provider or NullFinanceProvider()).delete_item(
                         connection.item_ref
                     )
+                except Exception as exc:
+                    logger.warning(
+                        "finance_delete_item_failed",
+                        connection_id=str(connection.id),
+                        error=type(exc).__name__,
+                    )
+                    aggregator_failed = True
                 await session.delete(connection)
+                if aggregator_failed:
+                    return "Banco desconectado. A remoção no agregador falhou."
                 return "Banco desconectado. Seus gastos importados foram mantidos."
             if len(parts) != 1:
                 return "Use /banco <identificador> para conectar um banco."

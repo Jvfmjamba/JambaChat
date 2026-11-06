@@ -1,5 +1,4 @@
-from contextlib import suppress
-
+import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +13,7 @@ from jambachat.reminders.models import Reminder
 from jambachat.security.crypto import get_cipher
 from jambachat.users.models import User
 
+logger = structlog.get_logger(__name__)
 _null_finance_provider = NullFinanceProvider()
 
 
@@ -50,8 +50,14 @@ async def delete_user_data(
         await session.scalars(select(FinanceConnection).where(FinanceConnection.user_id == user.id))
     )
     for connection in connections:
-        with suppress(Exception):
+        try:
             await finance_provider.delete_item(connection.item_ref)
+        except Exception as exc:
+            logger.warning(
+                "finance_delete_item_failed",
+                connection_id=str(connection.id),
+                error=type(exc).__name__,
+            )
     for model in (
         ExpenseLink,
         FinanceSuppression,

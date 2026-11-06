@@ -1,10 +1,12 @@
 from datetime import date
+import logging
 
 import httpx
 import pytest
 
 from jambachat.finance.errors import FinanceAuthError, FinanceError
 from jambachat.finance.pluggy import PluggyProvider
+from jambachat.logging import configure_logging
 
 
 def _provider(handler: httpx.MockTransport) -> PluggyProvider:
@@ -14,6 +16,12 @@ def _provider(handler: httpx.MockTransport) -> PluggyProvider:
         client_secret="secret",
         base_url="https://pluggy.test",
     )
+
+
+def test_httpx_logger_uses_warning_level() -> None:
+    configure_logging("INFO", json=False)
+
+    assert logging.getLogger("httpx").level == logging.WARNING
 
 
 @pytest.mark.asyncio

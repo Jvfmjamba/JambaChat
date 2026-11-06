@@ -68,6 +68,32 @@ async def test_find_match_for_import_chooses_closest_then_oldest(session: AsyncS
     ) == same_day_first
 
 
+async def test_find_match_for_import_matches_at_three_days_but_not_four(
+    session: AsyncSession,
+) -> None:
+    user = await _user(session)
+    when = datetime(2026, 11, 20, 12, tzinfo=UTC)
+    await _entry(session, user, occurred_at=when - timedelta(days=4))
+
+    assert await find_match_for_import(session, user, EntryKind.EXPENSE, 1000, when) is None
+
+    within_window = await _entry(session, user, occurred_at=when + timedelta(days=3))
+
+    assert (
+        await find_match_for_import(session, user, EntryKind.EXPENSE, 1000, when)
+    ) == within_window
+
+
+async def test_find_match_for_import_matches_three_days_and_ten_hours_before(
+    session: AsyncSession,
+) -> None:
+    user = await _user(session)
+    when = datetime(2026, 11, 20, 12, tzinfo=UTC)
+    manual = await _entry(session, user, occurred_at=datetime(2026, 11, 17, 2, tzinfo=UTC))
+
+    assert await find_match_for_import(session, user, EntryKind.EXPENSE, 1000, when) == manual
+
+
 async def test_find_match_for_import_excludes_linked_and_other_sources(
     session: AsyncSession,
 ) -> None:
